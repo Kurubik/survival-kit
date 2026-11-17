@@ -4,6 +4,20 @@
 
 **Первая alpha, не завершённый полевой продукт.** Состояние Android-сборки и UI-проверок видно в [Actions](https://github.com/Kurubik/survival-kit/actions/workflows/android.yml). APK публикуется в [pre-releases](https://github.com/Kurubik/survival-kit/releases) только после успешной сборки, unit-тестов, lint и Android emulator UI-тестов. Эмулятор не заменяет проверку на реальном телефоне.
 
+## Скриншоты
+
+Реальные экраны [alpha-12](https://github.com/Kurubik/survival-kit/releases/tag/alpha-12): Android 35, эмулятор Pixel 6, 1080 × 2400. Это снимки приложения, не AI-макеты. На экране спутника показан сценарный режим без загруженной AI-модели; карта Латвии открыта из локального пакета с отключёнными Wi-Fi и мобильными данными.
+
+| Лагерь | Спутник | Памятка |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/01-camp.png" alt="Лагерь: походный спутник и быстрые разделы" width="240"> | <img src="docs/screenshots/02-companion.png" alt="Русский диалог: уточнение снаряжения для розжига" width="240"> | <img src="docs/screenshots/03-guide.png" alt="Пошаговая памятка об огне и тепле" width="240"> |
+
+| Рюкзак | Офлайн-карта | Помощь |
+| :---: | :---: | :---: |
+| <img src="docs/screenshots/04-backpack.png" alt="Рюкзак: сохраняемый чек-лист снаряжения" width="240"> | <img src="docs/screenshots/05-map.png" alt="Карта Риги и окрестностей без сети" width="240"> | <img src="docs/screenshots/06-help.png" alt="Экран помощи: вызов 112 и получение координат" width="240"> |
+
+[Оригинальные PNG](docs/screenshots/) · [Прогон сборки и Android-проверок](https://github.com/Kurubik/survival-kit/actions/runs/44071562775). Исходный код этих экранов: [`1581149`](https://github.com/Kurubik/survival-kit/commit/1581149178088301e929615ff4dc0dcf697e726f).
+
 ## Реализовано в исходниках
 
 - Нативный Kotlin + Jetpack Compose, русский интерфейс и включённые в APK кириллические шрифты.
