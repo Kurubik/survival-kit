@@ -115,7 +115,8 @@ class PutnikModel(app: Application): AndroidViewModel(app), LocationListener {
                         viewModelScope.launch(Dispatchers.Main.immediate) {if(token==requestId&&thinking)streaming=visible}
                     }
                     val detailed=GuideLibrary.normalize(input).let {it.contains("подроб")||it.contains("развернут")||it.contains("длинн")||it.contains("истори")}
-                    Conversation.visibleAnswer(NativeLlama.generate(prompt.toByteArray(Charsets.UTF_8),listener,request,if(detailed)384else192).toString(Charsets.UTF_8))
+                    val tokenLimit = if (detailed) 384 else 192
+                    Conversation.visibleAnswer(NativeLlama.generate(prompt.toByteArray(Charsets.UTF_8),listener,request,tokenLimit).toString(Charsets.UTF_8))
                 }
                 if(token!=requestId)return@launch
                 check(answer.isNotBlank()) {"Спутник не закончил ответ. Попробуй ещё раз."}

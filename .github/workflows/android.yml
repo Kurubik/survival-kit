@@ -28,6 +28,8 @@ jobs:
         run: 'python3 tools/ci-run.py "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"'
       - name: Compile and verify
         run: python3 tools/ci-run.py ./gradlew :core:test :app:lintDebug :app:assembleDebug :app:assembleAndroidTest --stacktrace
+      - name: Verify optimized native inference in both APK architectures
+        run: python3 tools/ci-run.py python3 tools/verify-native-build.py
       - name: Download verified offline Latvia fixture
         run: |
           curl -fL --retry 2 https://download.mapsforge.org/maps/v5/europe/latvia.map -o /tmp/latvia.map

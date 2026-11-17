@@ -11,6 +11,9 @@ set(GGML_NATIVE OFF CACHE BOOL "" FORCE)
 set(GGML_OPENMP OFF CACHE BOOL "" FORCE)
 set(GGML_LLAMAFILE OFF CACHE BOOL "" FORCE)
 set(GGML_BACKEND_DL OFF CACHE BOOL "" FORCE)
+# The downloadable alpha is a debug Android package, but its quantized inference
+# kernels still need optimization. Keep debug symbols without running -O0 loops.
+add_compile_options(-O3)
 include(FetchContent)
 FetchContent_Declare(llama_cpp URL https://github.com/ggml-org/llama.cpp/archive/dde879bc4f954b809892fd0d660515f42536394a.tar.gz)
 FetchContent_MakeAvailable(llama_cpp)
