@@ -164,6 +164,7 @@ private fun guideIcon(id: String): ImageVector = when(id) { "fire"->Icons.Outlin
 @Composable private fun ChatScreen(vm: PutnikModel) {
     val context=LocalContext.current
     var question by rememberSaveableText()
+    LaunchedEffect(vm.recognizedDraft) { if(vm.recognizedDraft.isNotBlank()){question=vm.recognizedDraft;vm.recognizedDraft=""} }
     val list=rememberLazyListState()
     val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> if(granted)vm.voice.listen() else vm.voiceStatus="Можно написать вопрос — микрофон не обязателен" }
     LaunchedEffect(vm.messages.size,vm.thinking) { if(vm.messages.isNotEmpty())list.animateScrollToItem(vm.messages.lastIndex) }
@@ -238,7 +239,7 @@ private fun guideIcon(id: String): ImageVector = when(id) { "fire"->Icons.Outlin
         item { PaperPanel(Modifier.fillMaxWidth()) {
             SectionTitle("Перед выходом")
             Text("Собрано ${vm.checked.count {it.value}} из ${vm.checked.size}",fontSize=12.sp,color=Moss)
-            vm.checked.keys.toList().forEach { item-> Row(Modifier.fillMaxWidth().clickable{vm.checkGear(item,vm.checked[item]!=true)}.heightIn(min=48.dp),verticalAlignment=Alignment.CenterVertically) {Checkbox(vm.checked[item]==true,{vm.checkGear(item,it)},colors=CheckboxDefaults.colors(checkedColor=Moss));Text(item,Modifier.weight(1f),fontSize=16.sp)} }
+            vm.checked.keys.toList().forEach { item-> Row(Modifier.fillMaxWidth().clickable{vm.checkGear(item,vm.checked[item]!=true)}.heightIn(min=48.dp),verticalAlignment=Alignment.CenterVertically) {Checkbox(vm.checked[item]==true,{vm.checkGear(item,it)},modifier=Modifier.testTag("gear-$item"),colors=CheckboxDefaults.colors(checkedColor=Moss));Text(item,Modifier.weight(1f),fontSize=16.sp)} }
         } }
         item { SectionTitle("Готовность без сети") }
         item { PaperPanel(Modifier.fillMaxWidth()) { Readiness("Русские памятки","10 карточек в приложении",true);Readiness("Чтение вслух",vm.voiceStatus,vm.voice.canSpeak);Text("Пакеты скачиваются только по твоему нажатию.",fontSize=11.sp) } }

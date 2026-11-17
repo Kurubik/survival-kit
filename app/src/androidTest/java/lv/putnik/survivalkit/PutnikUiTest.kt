@@ -4,6 +4,8 @@ import android.graphics.Bitmap
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.state.ToggleableState
 import org.junit.Rule
 import org.junit.Test
 import java.io.File
@@ -38,11 +40,15 @@ class PutnikUiTest {
     }
     @Test fun backpackStatesAreHonestAndGearPersists() {
         compose.onNodeWithTag("tab-PACK").performClick()
-        compose.onNodeWithText("Вода").assertIsDisplayed().performClick()
+        val water=compose.onNodeWithTag("gear-Вода")
+        val before=water.fetchSemanticsNode().config[SemanticsProperties.ToggleableState]==ToggleableState.On
+        water.assertIsDisplayed().performClick()
         capture("04-backpack")
         compose.activityRule.scenario.recreate()
         compose.onNodeWithTag("tab-PACK").performClick()
         compose.onNodeWithText("Перед выходом").assertIsDisplayed()
+        if(before)compose.onNodeWithTag("gear-Вода").assertIsOff() else compose.onNodeWithTag("gear-Вода").assertIsOn()
+        org.junit.Assert.assertEquals(!before,compose.activity.getSharedPreferences("putnik",0).getBoolean("gear:Вода",false))
     }
     @Test fun mapAndEmergencyDoNotInventPosition() {
         compose.onNodeWithTag("tab-MAP").performClick()

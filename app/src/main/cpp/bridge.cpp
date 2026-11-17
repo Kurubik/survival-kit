@@ -24,7 +24,7 @@ static jbyteArray bytes(JNIEnv * env,const std::string & value) {
 }
 extern "C" JNIEXPORT jstring JNICALL Java_lv_putnik_survivalkit_NativeLlama_load(JNIEnv * env,jobject,jstring path) {
     std::lock_guard<std::mutex> lock(guard);cancelled=false;clear_model();llama_backend_init();
-    auto params=llama_model_default_params();params.n_gpu_layers=0;params.use_mmap=true;
+    auto params=llama_model_default_params();params.n_gpu_layers=0;params.load_mode=LLAMA_LOAD_MODE_MMAP;
     model=llama_model_load_from_file(utf8(env,path).c_str(),params);
     if(!model)return env->NewStringUTF("Model could not be loaded");
     auto cp=llama_context_default_params();cp.n_ctx=2048;cp.n_batch=256;cp.n_ubatch=128;

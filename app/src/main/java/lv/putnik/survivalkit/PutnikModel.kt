@@ -28,6 +28,7 @@ class PutnikModel(app: Application): AndroidViewModel(app), LocationListener {
     var note by mutableStateOf(prefs.getString("note","").orEmpty())
     var voiceStatus by mutableStateOf("Проверяю русский голос…")
     var listening by mutableStateOf(false)
+    var recognizedDraft by mutableStateOf("")
     var autoRead by mutableStateOf(prefs.getBoolean("autoRead",false))
     var packStatus by mutableStateOf("")
     var activePack by mutableStateOf<String?>(null)
@@ -50,7 +51,7 @@ class PutnikModel(app: Application): AndroidViewModel(app), LocationListener {
     private var generationJob: Job?=null
     private var idleJob: Job?=null
     private var requestId=0
-    val voice=Voice(app,viewModelScope,{ voiceStatus=it;listening=it.startsWith("Слушаю") },{ ask(it,true) })
+    val voice=Voice(app,viewModelScope,{ voiceStatus=it;listening=it.startsWith("Слушаю") },{ recognizedDraft=it;page=Page.CHAT;voiceStatus="Проверь распознанный текст и отправь вопрос" })
     init {
         listOf("Вода","Аптечка","Фонарь","Огниво / зажигалка","Дождевик","Сухая одежда","Карта и компас","Еда","Пауэрбанк","Укрытие").forEach { checked[it]=prefs.getBoolean("gear:$it",false) }
         bookmarks.addAll(prefs.getStringSet("bookmarks",emptySet())!!.toList())
