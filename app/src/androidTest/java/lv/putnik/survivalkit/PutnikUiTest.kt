@@ -1,6 +1,8 @@
 package lv.putnik.survivalkit
 
 import android.graphics.Bitmap
+import android.content.ContentValues
+import android.provider.MediaStore
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
@@ -8,7 +10,6 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.state.ToggleableState
 import org.junit.Rule
 import org.junit.Test
-import java.io.File
 
 class PutnikUiTest {
     @get:Rule val compose=createAndroidComposeRule<MainActivity>()
@@ -16,8 +17,16 @@ class PutnikUiTest {
         compose.waitForIdle()
         Thread.sleep(700)
         val instrumentation=InstrumentationRegistry.getInstrumentation()
-        val dir=File(instrumentation.targetContext.getExternalFilesDir(null),"screenshots").apply {mkdirs()}
-        instrumentation.uiAutomation.takeScreenshot().let { bitmap-> File(dir,"$name.png").outputStream().use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle() }
+        val resolver=instrumentation.targetContext.contentResolver
+        val values=ContentValues().apply {
+            put(MediaStore.Images.Media.DISPLAY_NAME,"$name.png")
+            put(MediaStore.Images.Media.MIME_TYPE,"image/png")
+            put(MediaStore.Images.Media.RELATIVE_PATH,"Pictures/PutnikCI")
+            put(MediaStore.Images.Media.IS_PENDING,1)
+        }
+        val uri=requireNotNull(resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,values))
+        instrumentation.uiAutomation.takeScreenshot().let { bitmap-> resolver.openOutputStream(uri)!!.use {bitmap.compress(Bitmap.CompressFormat.PNG,100,it)};bitmap.recycle() }
+        values.clear();values.put(MediaStore.Images.Media.IS_PENDING,0);resolver.update(uri,values,null,null)
     }
     @Test fun campDisplaysSelectedDirection() {
         compose.onNodeWithText("Что нужно сейчас?").assertIsDisplayed()

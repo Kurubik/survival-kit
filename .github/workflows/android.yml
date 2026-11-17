@@ -69,6 +69,7 @@ jobs:
         run: |
           mkdir -p release
           cp output/app/build/outputs/apk/debug/app-debug.apk release/putnik-alpha.apk
+          cp output/evidence/verification.json release/verification.json
           (cd release && sha256sum putnik-alpha.apk > SHA256SUMS)
-          if [ -d output/evidence ]; then (cd output/evidence && zip -r ../../release/android-emulator-screenshots.zip .); fi
+          (cd output/evidence/screenshots && zip -r ../../../release/android-emulator-screenshots.zip .)
           gh release create "alpha-${{ github.run_number }}" release/* --prerelease --target "$GITHUB_SHA" --title "Путник · Android alpha ${{ github.run_number }}" --notes-file docs/ALPHA.md

@@ -6,6 +6,8 @@ import shutil
 import subprocess
 import sys
 import time
+import json
+import xml.etree.ElementTree as ET
 
 root=pathlib.Path.cwd()
 evidence=root/"evidence"
@@ -28,6 +30,7 @@ def run(*args,input=None,timeout=600,check=True):
 
 emulator=None
 log=None
+screens_collected=False
 try:
     print("Disk free GiB",round(shutil.disk_usage(root).free/2**30,2),"KVM",pathlib.Path("/dev/kvm").exists(),flush=True)
     run(tools/"sdkmanager","platform-tools","emulator","system-images;android-35;google_apis;x86_64")
@@ -59,6 +62,22 @@ try:
     run(adb,"shell","svc","wifi","disable")
     run(adb,"shell","svc","data","disable")
     run(sys.executable,"tools/ci-run.py","./gradlew",":app:connectedDebugAndroidTest","--stacktrace",timeout=900)
+    def suites(directory):
+        results=[]
+        for path in pathlib.Path(directory).rglob("TEST-*.xml"):
+            suite=ET.parse(path).getroot()
+            if suite.tag!="testsuite":continue
+            results.append({"name":suite.get("name"),"tests":int(suite.get("tests","0")),"failures":int(suite.get("failures","0")),"errors":int(suite.get("errors","0")),"skipped":int(suite.get("skipped","0")),"cases":[c.get("name")for c in suite.findall("testcase")]})
+        return results
+    unit=suites("core/build/test-results/test")
+    android=suites("app/build/outputs/androidTest-results")
+    if sum(s["tests"]for s in unit)!=7 or sum(s["tests"]for s in android)!=5:raise RuntimeError("Expected seven core and five Android cases, not an empty successful invocation")
+    if any(s["failures"]+s["errors"]+s["skipped"] for s in unit+android):raise RuntimeError("A required test failed or was skipped")
+    run(adb,"pull","/sdcard/Pictures/PutnikCI",evidence/"screenshots",timeout=30)
+    pictures=list((evidence/"screenshots").glob("*.png"))
+    if len(pictures)!=6:raise RuntimeError(f"Expected six real Android screenshots; found {len(pictures)}")
+    screens_collected=True
+    (evidence/"verification.json").write_text(json.dumps({"commit":os.environ.get("GITHUB_SHA"),"unit":unit,"android_emulator":android,"screenshots":[p.name for p in pictures],"network":"emulator Wi-Fi and mobile data disabled","device_quality_verified":False},ensure_ascii=False,indent=2))
 except Exception:
     if log:log.flush()
     if (evidence/"emulator.log").exists():print((evidence/"emulator.log").read_text(errors="replace")[-7000:],flush=True)
@@ -66,7 +85,7 @@ except Exception:
 finally:
     if emulator:
         try:
-            run(adb,"pull","/sdcard/Android/data/lv.putnik.survivalkit/files/screenshots",evidence/"screenshots",timeout=30,check=False)
+            if not screens_collected:run(adb,"pull","/sdcard/Pictures/PutnikCI",evidence/"screenshots",timeout=30,check=False)
             result=run(adb,"logcat","-d","-t","600",timeout=30,check=False)
             (evidence/"logcat.txt").write_text(result.stdout)
         except (subprocess.SubprocessError,OSError) as error:print("Evidence collection:",error,flush=True)
