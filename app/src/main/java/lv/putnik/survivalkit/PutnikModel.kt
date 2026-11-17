@@ -123,11 +123,11 @@ class PutnikModel(app: Application): AndroidViewModel(app), LocationListener {
             }
         }
     }
-    fun setChatMode(value: ChatMode) {
+    fun selectChatMode(value: ChatMode) {
         cancelGeneration();engine.reset();chatMode=value;prefs.edit().putString("chatMode",value.name).apply()
         choices=if(value==ChatMode.GUIDED)listOf("Огонь", "Вода", "Укрытие", "Я потерялся")else emptyList()
     }
-    fun discussGuide(guide: Guide) {setChatMode(ChatMode.GUIDED);ask(guide.title)}
+    fun discussGuide(guide: Guide) {selectChatMode(ChatMode.GUIDED);ask(guide.title)}
     fun retryConversation() {
         if(thinking)return
         val last=messages.lastOrNull()?:return

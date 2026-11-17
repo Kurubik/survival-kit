@@ -58,7 +58,7 @@ class PutnikUiTest {
         if(present)check(file.renameTo(hidden))
         try {
             lateinit var vm: PutnikModel
-            compose.runOnIdle {vm=ViewModelProvider(compose.activity)[PutnikModel::class.java];vm.clearChat();vm.setChatMode(ChatMode.FREE)}
+            compose.runOnIdle {vm=ViewModelProvider(compose.activity)[PutnikModel::class.java];vm.clearChat();vm.selectChatMode(ChatMode.FREE)}
             compose.onNodeWithTag("tab-CHAT").performClick()
             compose.onNodeWithTag("download-chat-model").assertIsDisplayed()
             compose.onNodeWithTag("question").performTextInput("Привет! Хочу просто поболтать")
@@ -78,7 +78,7 @@ class PutnikUiTest {
         lateinit var vm: PutnikModel
         compose.runOnIdle {
             vm=ViewModelProvider(compose.activity)[PutnikModel::class.java]
-            vm.clearChat();vm.setChatMode(ChatMode.FREE);vm.setTone(Personality.WARM)
+            vm.clearChat();vm.selectChatMode(ChatMode.FREE);vm.setTone(Personality.WARM)
         }
         compose.onNodeWithTag("tab-CHAT").performClick()
         val questions=listOf(
