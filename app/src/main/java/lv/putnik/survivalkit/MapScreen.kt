@@ -6,13 +6,16 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.drawable.BitmapDrawable
+import android.view.ViewOutlineProvider
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -27,6 +30,7 @@ import org.mapsforge.map.layer.overlay.Polyline
 import org.mapsforge.map.layer.renderer.TileRendererLayer
 import org.mapsforge.map.reader.MapFile
 import org.mapsforge.map.rendertheme.internal.MapsforgeThemes
+import org.mapsforge.map.scalebar.DefaultMapScaleBar
 
 @Composable fun MapScreen(vm: PutnikModel) {
     val context=LocalContext.current
@@ -50,6 +54,8 @@ import org.mapsforge.map.rendertheme.internal.MapsforgeThemes
                 AndroidGraphicFactory.createInstance(context.applicationContext as android.app.Application)
                 MapView(ctx).apply {
                     isClickable=true;setBuiltInZoomControls(true);mapScaleBar.isVisible=true
+                    outlineProvider=ViewOutlineProvider.BOUNDS;clipToOutline=true
+                    (mapScaleBar as? DefaultMapScaleBar)?.setScaleBarMode(DefaultMapScaleBar.ScaleBarMode.SINGLE)
                     model.displayModel.setFixedTileSize(256)
                     val cache=AndroidUtil.createTileCache(ctx,"latvia-cache",model.displayModel.tileSize,1f,model.frameBufferModel.overdrawFactor.toDouble())
                     val data=MapFile(Packs.file(ctx,Packs.map))
@@ -59,7 +65,7 @@ import org.mapsforge.map.rendertheme.internal.MapsforgeThemes
                     setCenter(LatLong(vm.camp?.latitude?:56.9496,vm.camp?.longitude?:24.1052));setZoomLevel(11)
                     mapView=this
                 }
-            },modifier=Modifier.weight(1f).fillMaxWidth(),update={ map->
+            },modifier=Modifier.weight(1f).fillMaxWidth().clipToBounds().testTag("offline-map"),update={ map->
                 overlays.forEach {map.layerManager.layers.remove(it);it.onDestroy()};overlays.clear()
                 if(vm.track.size>1) {
                     val paint=AndroidGraphicFactory.INSTANCE.createPaint().apply { color=0xFF883D2C.toInt();strokeWidth=6f;setStyle(org.mapsforge.core.graphics.Style.STROKE) }

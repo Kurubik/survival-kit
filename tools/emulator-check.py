@@ -59,6 +59,8 @@ try:
         result=subprocess.run([adb,"shell","-T","run-as lv.putnik.survivalkit sh -c 'cat > files/packs/latvia.map'"],stdin=source,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=90)
         print(result.stdout,flush=True)
         if result.returncode:raise RuntimeError("Could not install private map fixture: "+result.stdout)
+    fixture=run(adb,"shell","run-as","lv.putnik.survivalkit","sha256sum","files/packs/latvia.map")
+    if not fixture.stdout.startswith("72c93a1527458ab589accba21f85cdd8a529381a7c549346701ef3efbf756b2d "):raise RuntimeError("Installed emulator map fixture checksum does not match")
     run(adb,"shell","svc","wifi","disable")
     run(adb,"shell","svc","data","disable")
     run(sys.executable,"tools/ci-run.py","./gradlew",":app:connectedDebugAndroidTest","--stacktrace",timeout=900)

@@ -62,7 +62,24 @@ class PutnikUiTest {
     @Test fun mapAndEmergencyDoNotInventPosition() {
         compose.onNodeWithTag("tab-MAP").performClick()
         compose.onNodeWithText("Координаты ещё не получены").assertExists()
-        capture("05-map")
+        val mapBounds=compose.onNodeWithTag("offline-map").fetchSemanticsNode().boundsInRoot
+        try {
+            // Native renderer workers are not covered by Compose's idle detection.
+            // Inspect the actual central map pixels, not a loaded-file flag or label.
+            compose.waitUntil(timeoutMillis=30_000) {
+                val bitmap=InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
+                val colors=mutableMapOf<Int,Int>()
+                for(x in 0 until 30)for(y in 0 until 30) {
+                    val px=(mapBounds.left+mapBounds.width*(.1f+.8f*x/29)).toInt().coerceIn(0,bitmap.width-1)
+                    val py=(mapBounds.top+mapBounds.height*(.1f+.8f*y/29)).toInt().coerceIn(0,bitmap.height-1)
+                    val pixel=bitmap.getPixel(px,py)
+                    val quantized=pixel and 0x00F0F0F0
+                    colors[quantized]=(colors[quantized]?:0)+1
+                }
+                bitmap.recycle()
+                colors.size>=12&&(colors.values.maxOrNull()?:900)<765
+            }
+        } finally {capture("05-map")}
         compose.onNodeWithTag("help").performClick()
         compose.onNodeWithText("Актуальная точка ещё не получена.").assertExists()
         capture("06-help")

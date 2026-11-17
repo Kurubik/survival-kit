@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
@@ -44,6 +45,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import lv.putnik.core.*
 import java.util.Locale
 import java.text.SimpleDateFormat
@@ -69,6 +71,15 @@ class MainActivity: ComponentActivity() {
 
 @Composable fun PutnikApp(vm: PutnikModel) {
     val context=LocalContext.current
+    val view=LocalView.current
+    SideEffect {
+        (context as? android.app.Activity)?.window?.let { window->
+            WindowCompat.getInsetsController(window,view).apply {
+                isAppearanceLightStatusBars=vm.daylight
+                isAppearanceLightNavigationBars=vm.daylight
+            }
+        }
+    }
     val scheme=if(vm.daylight) lightColorScheme(primary=Moss,secondary=Brass,background=Paper,surface=Ivory,onSurface=Ink,onBackground=Ink)
         else darkColorScheme(primary=Brass,secondary=Moss,background=Coal,surface=Color(0xFF24291F),onSurface=Ivory,onBackground=Ivory)
     MaterialTheme(colorScheme=scheme,typography=Typography(bodyLarge=androidx.compose.ui.text.TextStyle(fontFamily=Body,fontSize=16.sp,lineHeight=24.sp),bodyMedium=androidx.compose.ui.text.TextStyle(fontFamily=Body,fontSize=14.sp,lineHeight=21.sp),titleLarge=androidx.compose.ui.text.TextStyle(fontFamily=Heading,fontSize=30.sp,fontWeight=FontWeight.SemiBold),labelLarge=androidx.compose.ui.text.TextStyle(fontFamily=Body,fontSize=14.sp,fontWeight=FontWeight.Medium))) {
@@ -223,7 +234,7 @@ private fun guideIcon(id: String): ImageVector = when(id) { "fire"->Icons.Outlin
         item { PaperPanel(Modifier.fillMaxWidth()) {
             Row(verticalAlignment=Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text("ПАМЯТКА · ЛАТВИЯ",fontSize=10.sp,color=Moss);SectionTitle(guide.title) };IconButton(onClick={vm.bookmark(guide.id)}) {Icon(if(guide.id in vm.bookmarks)Icons.Outlined.Bookmark else Icons.Outlined.BookmarkBorder,"Сохранить памятку",tint=Moss)} }
             Text(guide.summary)
-            Text("Учебная карточка. Медицинские назначения не выполняются.",fontSize=11.sp,color=Rust)
+            if(guide.critical)Text("Справочная памятка. При угрозе жизни звони 112.",fontSize=11.sp,color=Rust)
         } }
         itemsIndexed(guide.steps) { index,step -> PaperPanel(Modifier.fillMaxWidth()) { Text("${index+1} / ${guide.steps.size}",fontSize=12.sp,color=Moss,fontWeight=FontWeight.Bold);Text(step,fontSize=17.sp,lineHeight=25.sp) } }
         item { PaperPanel(Modifier.fillMaxWidth()) { Row(verticalAlignment=Alignment.CenterVertically) { Icon(Icons.Outlined.WarningAmber,null,tint=Rust);Spacer(Modifier.width(8.dp));Text("Важно",fontFamily=Heading,fontSize=27.sp,color=Rust) };guide.warnings.forEach { Text("• $it",fontSize=14.sp,lineHeight=21.sp) } } }
