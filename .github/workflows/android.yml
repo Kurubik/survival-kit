@@ -34,22 +34,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Real Android emulator UI and offline map checks
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          arch: x86_64
-          target: google_apis
-          profile: pixel_6
-          disable-animations: true
-          script: |
-            adb install -r app/build/outputs/apk/debug/app-debug.apk
-            adb push /tmp/latvia.map /data/local/tmp/latvia.map
-            adb shell run-as lv.putnik.survivalkit mkdir -p files/packs
-            adb shell 'cat /data/local/tmp/latvia.map | run-as lv.putnik.survivalkit sh -c "cat > files/packs/latvia.map"'
-            adb shell svc wifi disable
-            adb shell svc data disable
-            python3 tools/ci-run.py ./gradlew :app:connectedDebugAndroidTest --stacktrace
-            adb pull /sdcard/Android/data/lv.putnik.survivalkit/files/screenshots evidence
+        run: python3 tools/ci-run.py python3 tools/emulator-check.py
       - name: Save alpha and verification evidence
         if: always()
         uses: actions/upload-artifact@v4

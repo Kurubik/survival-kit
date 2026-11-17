@@ -9,6 +9,8 @@ import collections
 import re
 import subprocess
 import sys
+import pathlib
+import xml.etree.ElementTree as ET
 
 if len(sys.argv) < 2:
     raise SystemExit("usage: ci-run.py COMMAND [ARG ...]")
@@ -24,4 +26,14 @@ if status:
     message = "".join(primary[:50] + secondary[-8:] if primary else list(lines)[-40:])[:18000]
     message = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
     print(f"::error title=Verification command exited {status}::{message}")
+    reports=pathlib.Path("app/build/outputs/androidTest-results")
+    if reports.exists():
+        for report in reports.rglob("TEST-*.xml"):
+            try:
+                for case in ET.parse(report).getroot().iter("testcase"):
+                    for failure in list(case.findall("failure"))+list(case.findall("error")):
+                        detail=(case.get("name","")+": "+failure.get("message","")+"\n"+(failure.text or ""))[:8000]
+                        detail=detail.replace("%","%25").replace("\r","%0D").replace("\n","%0A")
+                        print(f"::error title=Android UI test::{detail}")
+            except (OSError,ET.ParseError):pass
 raise SystemExit(status)

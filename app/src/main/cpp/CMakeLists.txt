@@ -16,3 +16,4 @@ FetchContent_Declare(llama_cpp URL https://github.com/ggml-org/llama.cpp/archive
 FetchContent_MakeAvailable(llama_cpp)
 add_library(putnik SHARED bridge.cpp)
 target_link_libraries(putnik llama android log)
+target_link_options(putnik PRIVATE "-Wl,-z,max-page-size=16384")
