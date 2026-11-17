@@ -107,12 +107,15 @@ class PutnikModel(app: Application): AndroidViewModel(app), LocationListener {
                     loadModel(request)
                     withContext(Dispatchers.Main) {if(token==requestId){modelReady=true;modelStatus="Живой диалог · на устройстве"}}
                     if(BuildConfig.DEBUG)android.util.Log.i("PutnikAI","generation started")
+                    var firstChunk=true
                     val listener=NativeLlama.Listener { bytes->
                         val decoded=Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.IGNORE).onUnmappableCharacter(CodingErrorAction.IGNORE).decode(ByteBuffer.wrap(bytes)).toString()
                         val visible=Conversation.visibleAnswer(decoded)
+                        if(firstChunk&&visible.isNotBlank()){firstChunk=false;if(BuildConfig.DEBUG)android.util.Log.i("PutnikAI","first visible chunk: characters=${visible.length}")}
                         viewModelScope.launch(Dispatchers.Main.immediate) {if(token==requestId&&thinking)streaming=visible}
                     }
-                    Conversation.visibleAnswer(NativeLlama.generate(prompt.toByteArray(Charsets.UTF_8),listener,request).toString(Charsets.UTF_8))
+                    val detailed=GuideLibrary.normalize(input).let {it.contains("подроб")||it.contains("развернут")||it.contains("длинн")||it.contains("истори")}
+                    Conversation.visibleAnswer(NativeLlama.generate(prompt.toByteArray(Charsets.UTF_8),listener,request,if(detailed)384else192).toString(Charsets.UTF_8))
                 }
                 if(token!=requestId)return@launch
                 check(answer.isNotBlank()) {"Спутник не закончил ответ. Попробуй ещё раз."}

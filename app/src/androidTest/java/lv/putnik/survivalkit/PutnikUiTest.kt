@@ -88,26 +88,50 @@ class PutnikUiTest {
         )
         val answers=mutableListOf<String>()
         val timings=mutableListOf<Long>()
+        val metrics=mutableListOf<JSONObject>()
+        val proof=JSONObject().put("model",Packs.model.filename).put("sha256",Packs.model.sha256)
+            .put("questions",JSONArray(questions)).put("runtime","actual Android emulator JNI, no cloud API")
+        val resolver=context.contentResolver
+        val values=ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME,"llm-smoke.json");put(MediaStore.Downloads.MIME_TYPE,"application/json")
+            put(MediaStore.Downloads.RELATIVE_PATH,"Download/PutnikCI");put(MediaStore.Downloads.IS_PENDING,1)
+        }
+        val uri=requireNotNull(resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values))
+        fun saveProof(phase: String) {
+            proof.put("phase",phase).put("answers",JSONArray(answers)).put("responseMilliseconds",JSONArray(timings))
+                .put("nativeMetrics",JSONArray(metrics)).put("appStatus",vm.modelStatus).put("streamedCharacters",vm.streaming.length)
+            resolver.openOutputStream(uri,"wt")!!.use {it.write(proof.toString(2).toByteArray(Charsets.UTF_8))}
+            values.clear();values.put(MediaStore.Downloads.IS_PENDING,0);resolver.update(uri,values,null,null)
+        }
+        saveProof("starting")
         for(question in questions.take(2)) {
             val before=System.currentTimeMillis()
             compose.onNodeWithTag("question").performTextInput(question)
             compose.onNodeWithTag("send").performClick()
             try {
                 compose.waitUntil(timeoutMillis=240_000) {!vm.thinking}
-            } catch(e: Exception) {
-                throw AssertionError("Native chat timed out: status=${vm.modelStatus}; ready=${vm.modelReady}; streamedCharacters=${vm.streaming.length}",e)
+            } catch(e: Throwable) {
+                saveProof("timeout")
+                val diagnostic="Native chat timed out: status=${vm.modelStatus}; ready=${vm.modelReady}; streamedCharacters=${vm.streaming.length}"
+                android.util.Log.e("PutnikAI",diagnostic)
+                throw AssertionError(diagnostic)
             }
+            saveProof("generation-returned")
             check(vm.messages.count {it.ai}>answers.size) {"Native chat failed: ${vm.modelStatus}; ready=${vm.modelReady}"}
             val answer=vm.messages.last {it.ai}.text
+            answers.add(answer);timings.add(System.currentTimeMillis()-before);metrics.add(JSONObject(NativeLlama.stats()))
+            saveProof("reply-${answers.size}")
             check(answer.isNotBlank()&&Regex("[А-Яа-яЁё]").containsMatchIn(answer))
             check(!answer.contains("<think>")&&!answer.contains("В загруженных памятках не нашлось"))
-            answers.add(answer);timings.add(System.currentTimeMillis()-before)
         }
         check(answers.last().lowercase().contains("рыжик")) {"Actual model did not recall the earlier personal detail"}
+        check(metrics.last().getInt("reusedTokens")>0) {"The follow-up did not reuse the native prefix cache"}
+        proof.put("recentDetailRecalled",true).put("prefixCacheReused",true)
+        saveProof("testing-stream")
         capture("07-free-conversation")
         compose.onNodeWithTag("question").performTextInput(questions.last())
         compose.onNodeWithTag("send").performClick()
-        compose.waitUntil(timeoutMillis=240_000) {vm.streaming.isNotBlank()}
+        try {compose.waitUntil(timeoutMillis=240_000) {vm.streaming.isNotBlank()}}catch(e: Throwable){saveProof("stream-timeout");throw AssertionError("Native stream failed: ${vm.modelStatus}; ready=${vm.modelReady}")}
         compose.onNodeWithContentDescription("Остановить AI").performClick()
         compose.waitUntil(timeoutMillis=10_000) {!vm.thinking}
         Thread.sleep(1200)
@@ -116,18 +140,7 @@ class PutnikUiTest {
         val stale=NativeLlama.startRequest();NativeLlama.startRequest()
         NativeLlama.unload(stale);check(NativeLlama.isLoaded())
         check(NativeLlama.generate(Conversation.prompt(listOf(DialogueTurn("Привет",true)),Personality.WARM).toByteArray(),null,stale).isEmpty())
-        val proof=JSONObject().put("model",Packs.model.filename).put("sha256",Packs.model.sha256)
-            .put("questions",JSONArray(questions)).put("answers",JSONArray(answers)).put("responseMilliseconds",JSONArray(timings))
-            .put("recentDetailRecalled",true).put("streamedTextObserved",true).put("lateResponseAfterCancel",false)
-            .put("staleRequestRejected",true).put("runtime","actual Android emulator JNI, no cloud API")
-        val resolver=context.contentResolver
-        val values=ContentValues().apply {
-            put(MediaStore.Downloads.DISPLAY_NAME,"llm-smoke.json");put(MediaStore.Downloads.MIME_TYPE,"application/json")
-            put(MediaStore.Downloads.RELATIVE_PATH,"Download/PutnikCI");put(MediaStore.Downloads.IS_PENDING,1)
-        }
-        val uri=requireNotNull(resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values))
-        resolver.openOutputStream(uri)!!.use {it.write(proof.toString(2).toByteArray(Charsets.UTF_8))}
-        values.clear();values.put(MediaStore.Downloads.IS_PENDING,0);resolver.update(uri,values,null,null)
+        proof.put("streamedTextObserved",true).put("lateResponseAfterCancel",false).put("staleRequestRejected",true)
         compose.activityRule.scenario.recreate()
         compose.runOnIdle {
             val restored=ViewModelProvider(compose.activity)[PutnikModel::class.java]
@@ -135,6 +148,7 @@ class PutnikUiTest {
             check(restored.messages.count {it.ai}==2)
             check(restored.messages.last {it.ai}.text==answers.last())
         }
+        saveProof("complete")
     }
     @Test fun guidesAreReadableWithoutAModel() {
         compose.onNodeWithTag("topic-fire").performClick()

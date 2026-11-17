@@ -4,6 +4,8 @@
 
 Owner feedback Telegram12873: free conversation feels scripted and limited to the loaded cards. The same primary agent owns this follow-up and its GitHub/APK publication in this repository. Add a default conversational local-AI mode with bounded recent dialogue, contextual personality and streamed answers; retain an explicit model-independent step-by-step mode. Missing/downloaded/loaded models must be distinguished. No cloud service, account, API secret or unrelated production change is authorized or introduced. Verify actual native model inference in CI rather than inferring it from prompt or UI fixtures; phone quality and performance remain separate.
 
+Real-model diagnostics: run44088784154 loaded the pinned Qwen weights in about4.3s with4341MiB available, then the first generation exceeded240s. That is not an inference-quality pass. The follow-up compacts the system prompt, reuses matching native KV prefixes, caps ordinary replies and logs only token counts/stages. Partial model responses and native timing/cache metrics are retained even when a test fails; release still requires real multi-turn recall, streaming and cancellation.
+
 ## Authorization and ownership
 
 2026-11-17: after the plan, two concept boards, selection of the first visual direction and clarification of Latvia/modern Android devices, the owner asked whether implementation was proceeding. Implementation is now in progress under the original app-and-GitHub request. The primary agent owns this entire new repository and the final GitHub push; no other repository or deployment is in scope.

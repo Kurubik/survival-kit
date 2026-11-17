@@ -13,8 +13,9 @@ class ConversationTest {
     @Test fun recentDialogueKeepsRolesAndPersonalDetails() {
         val prompt=Conversation.prompt(listOf(DialogueTurn("Моего пса зовут Рыжик",true),DialogueTurn("Берёшь его в поход?",false),DialogueTurn("Как зовут моего пса?",true)),Personality.WARM)
         assertTrue(prompt.contains("<|im_start|>user\nМоего пса зовут Рыжик"))
-        assertTrue(prompt.contains("<|im_start|>assistant\nБерёшь его в поход?"))
+        assertTrue(prompt.contains("<|im_start|>assistant\n<think>\n\n</think>\n\nБерёшь его в поход?"))
         assertTrue(prompt.contains("Как зовут моего пса?"))
+        assertTrue(prompt.startsWith(Conversation.prompt(listOf(DialogueTurn("Моего пса зовут Рыжик",true)),Personality.WARM)))
     }
     @Test fun contextBudgetDropsOldTurnsNotTheLatestQuestion() {
         val turns=(0..20).map { DialogueTurn("old-$it "+"текст ".repeat(150),it%2==0) }+DialogueTurn("НОВЫЙ ВОПРОС",true)

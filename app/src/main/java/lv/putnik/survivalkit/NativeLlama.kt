@@ -6,7 +6,8 @@ object NativeLlama {
     external fun startRequest(): Long
     external fun isLoaded(): Boolean
     external fun load(path: String, request: Long): String
-    external fun generate(prompt: ByteArray, listener: Listener?, request: Long): ByteArray
+    external fun generate(prompt: ByteArray, listener: Listener?, request: Long, maxTokens: Int=192): ByteArray
+    external fun stats(): String
     external fun cancel()
     external fun unload(request: Long)
 }

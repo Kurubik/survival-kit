@@ -31,6 +31,7 @@ def run(*args,input=None,timeout=600,check=True):
 emulator=None
 log=None
 screens_collected=False
+native_collected=False
 try:
     print("Disk free GiB",round(shutil.disk_usage(root).free/2**30,2),"KVM",pathlib.Path("/dev/kvm").exists(),flush=True)
     ram=os.sysconf("SC_PAGE_SIZE")*os.sysconf("SC_PHYS_PAGES")
@@ -87,9 +88,10 @@ try:
     if len(pictures)!=8:raise RuntimeError(f"Expected eight real Android screenshots; found {len(pictures)}")
     screens_collected=True
     run(adb,"pull","/sdcard/Download/PutnikCI",evidence/"native",timeout=30)
+    native_collected=True
     proof=json.loads((evidence/"native/llm-smoke.json").read_text())
-    if not proof["recentDetailRecalled"] or not proof["streamedTextObserved"] or proof["lateResponseAfterCancel"] or not proof["staleRequestRejected"]:raise RuntimeError("Actual native conversation proof is incomplete")
-    (evidence/"verification.json").write_text(json.dumps({"commit":os.environ.get("GITHUB_SHA"),"unit":unit,"android_emulator":android,"screenshots":[p.name for p in pictures],"native_inference":{"model_sha256":proof["sha256"],"runtime":proof["runtime"],"recent_detail_recalled":True,"streamed_text_observed":True,"cancellation_verified":True},"network":"emulator Wi-Fi and mobile data disabled","device_quality_verified":False},ensure_ascii=False,indent=2))
+    if proof.get("phase")!="complete" or not proof["recentDetailRecalled"] or not proof["prefixCacheReused"] or not proof["streamedTextObserved"] or proof["lateResponseAfterCancel"] or not proof["staleRequestRejected"]:raise RuntimeError("Actual native conversation proof is incomplete")
+    (evidence/"verification.json").write_text(json.dumps({"commit":os.environ.get("GITHUB_SHA"),"unit":unit,"android_emulator":android,"screenshots":[p.name for p in pictures],"native_inference":{"model_sha256":proof["sha256"],"runtime":proof["runtime"],"recent_detail_recalled":True,"prefix_cache_reused":True,"response_milliseconds":proof["responseMilliseconds"],"streamed_text_observed":True,"cancellation_verified":True},"network":"emulator Wi-Fi and mobile data disabled","device_quality_verified":False},ensure_ascii=False,indent=2))
 except Exception:
     if log:log.flush()
     if (evidence/"emulator.log").exists():print((evidence/"emulator.log").read_text(errors="replace")[-7000:],flush=True)
@@ -98,9 +100,10 @@ finally:
     if emulator:
         try:
             if not screens_collected:run(adb,"pull","/sdcard/Pictures/PutnikCI",evidence/"screenshots",timeout=30,check=False)
+            if not native_collected:run(adb,"pull","/sdcard/Download/PutnikCI",evidence/"native",timeout=30,check=False)
             result=subprocess.run([adb,"logcat","-d","-v","threadtime"],capture_output=True,text=True,timeout=30)
             import re
-            selected=[line for line in result.stdout.splitlines()if re.search(r"PutnikAI|llama_|ggml_|llama\.cpp|model_loader",line)]
+            selected=[line for line in result.stdout.splitlines()if re.search(r"PutnikAI|PutnikNative|llama_|ggml_|llama\.cpp|model_loader",line)]
             (evidence/"native-logcat.txt").write_text("\n".join(selected[-250:]))
             print("Native diagnostics (filtered):\n"+"\n".join(selected[-55:]),flush=True)
         except (subprocess.SubprocessError,OSError) as error:print("Evidence collection:",error,flush=True)
