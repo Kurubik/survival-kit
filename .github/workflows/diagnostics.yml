@@ -18,14 +18,14 @@ jobs:
         run: |
           python3 - <<'PY'
           import subprocess,re
-          result=subprocess.run(['gh','run','view','44064946995','--log-failed'],capture_output=True,text=True)
+          result=subprocess.run(['gh','run','view','44086740552','--log-failed'],capture_output=True,text=True)
           if result.returncode:
               print(result.stderr)
               raise SystemExit(result.returncode)
           lines=result.stdout.splitlines()
           indices=set()
           for i,line in enumerate(lines):
-              if re.search(r'PANIC|ERROR\s*\||fatal|RuntimeError|TimeoutExpired|cannot|not found|KVM|Could not|Disk free',line,re.I):
+              if re.search(r'PutnikAI|llama_|ggml_|Native chat|freeConversationUses|Builder RAM|Disk free|Memory|Unable to load|model could not',line,re.I):
                   indices.update(range(max(0,i-3),min(len(lines),i+4)))
           selected=[lines[i] for i in sorted(indices)]
           for index in range(0,len(selected),30):

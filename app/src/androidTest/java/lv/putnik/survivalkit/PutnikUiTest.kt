@@ -92,7 +92,12 @@ class PutnikUiTest {
             val before=System.currentTimeMillis()
             compose.onNodeWithTag("question").performTextInput(question)
             compose.onNodeWithTag("send").performClick()
-            compose.waitUntil(timeoutMillis=240_000) {!vm.thinking&&vm.messages.count {it.ai}>answers.size}
+            try {
+                compose.waitUntil(timeoutMillis=240_000) {!vm.thinking}
+            } catch(e: Exception) {
+                throw AssertionError("Native chat timed out: status=${vm.modelStatus}; ready=${vm.modelReady}; streamedCharacters=${vm.streaming.length}",e)
+            }
+            check(vm.messages.count {it.ai}>answers.size) {"Native chat failed: ${vm.modelStatus}; ready=${vm.modelReady}"}
             val answer=vm.messages.last {it.ai}.text
             check(answer.isNotBlank()&&Regex("[А-Яа-яЁё]").containsMatchIn(answer))
             check(!answer.contains("<think>")&&!answer.contains("В загруженных памятках не нашлось"))

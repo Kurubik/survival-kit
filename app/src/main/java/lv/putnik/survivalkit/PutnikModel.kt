@@ -88,9 +88,11 @@ class PutnikModel(app: Application): AndroidViewModel(app), LocationListener {
         check(NativeLlama.available) {"Локальный AI не поддерживается на этом устройстве"}
         if(!NativeLlama.isLoaded()) {
             val info=ActivityManager.MemoryInfo();getApplication<Application>().getSystemService(ActivityManager::class.java).getMemoryInfo(info)
+            if(BuildConfig.DEBUG)android.util.Log.i("PutnikAI","load: availableMiB=${info.availMem/1048576}; totalMiB=${info.totalMem/1048576}")
             check(info.availMem>3_200_000_000L) {"Для AI сейчас мало свободной памяти. Закрой другие приложения; памятки доступны и без модели."}
         }
         check(NativeLlama.load(Packs.file(getApplication(),Packs.model).absolutePath,request).isBlank()) {"Не удалось открыть AI-модель. Можно повторить загрузку в память."}
+        if(BuildConfig.DEBUG)android.util.Log.i("PutnikAI","load completed")
     }
     private fun generateConversation(input: String,fromVoice: Boolean=false) {
         idleJob?.cancel();thinking=true;streaming="";modelStatus="Открываю спутника на устройстве…"
@@ -104,6 +106,7 @@ class PutnikModel(app: Application): AndroidViewModel(app), LocationListener {
                 val answer=withContext(Dispatchers.IO) {
                     loadModel(request)
                     withContext(Dispatchers.Main) {if(token==requestId){modelReady=true;modelStatus="Живой диалог · на устройстве"}}
+                    if(BuildConfig.DEBUG)android.util.Log.i("PutnikAI","generation started")
                     val listener=NativeLlama.Listener { bytes->
                         val decoded=Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.IGNORE).onUnmappableCharacter(CodingErrorAction.IGNORE).decode(ByteBuffer.wrap(bytes)).toString()
                         val visible=Conversation.visibleAnswer(decoded)
@@ -117,6 +120,7 @@ class PutnikModel(app: Application): AndroidViewModel(app), LocationListener {
                 if(fromVoice||autoRead)voice.speak(answer)
             } catch(_: CancellationException) { }
             catch(e: Exception) {
+                if(BuildConfig.DEBUG)android.util.Log.w("PutnikAI","generation failed: ${e.javaClass.simpleName}")
                 if(token==requestId)modelStatus=e.message ?: "Не удалось получить ответ. Можно повторить вопрос."
             } finally {
                 if(token==requestId){thinking=false;streaming="";if(modelReady)scheduleIdleUnload()}

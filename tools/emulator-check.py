@@ -98,8 +98,11 @@ finally:
     if emulator:
         try:
             if not screens_collected:run(adb,"pull","/sdcard/Pictures/PutnikCI",evidence/"screenshots",timeout=30,check=False)
-            result=run(adb,"logcat","-d","-t","600",timeout=30,check=False)
-            (evidence/"logcat.txt").write_text(result.stdout)
+            result=subprocess.run([adb,"logcat","-d","-v","threadtime"],capture_output=True,text=True,timeout=30)
+            import re
+            selected=[line for line in result.stdout.splitlines()if re.search(r"PutnikAI|llama_|ggml_|llama\.cpp|model_loader",line)]
+            (evidence/"native-logcat.txt").write_text("\n".join(selected[-250:]))
+            print("Native diagnostics (filtered):\n"+"\n".join(selected[-55:]),flush=True)
         except (subprocess.SubprocessError,OSError) as error:print("Evidence collection:",error,flush=True)
         try:run(adb,"emu","kill",timeout=20,check=False)
         except (subprocess.SubprocessError,OSError):pass
