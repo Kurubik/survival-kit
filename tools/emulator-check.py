@@ -11,6 +11,12 @@ root=pathlib.Path.cwd()
 evidence=root/"evidence"
 evidence.mkdir(exist_ok=True)
 sdk=pathlib.Path(os.environ["ANDROID_HOME"])
+android_user=root/"ci-android-home"
+avd_home=android_user/"avd"
+avd_home.mkdir(parents=True,exist_ok=True)
+os.environ["ANDROID_USER_HOME"]=str(android_user)
+os.environ["ANDROID_EMULATOR_HOME"]=str(android_user)
+os.environ["ANDROID_AVD_HOME"]=str(avd_home)
 adb=str(sdk/"platform-tools/adb")
 tools=sdk/"cmdline-tools/latest/bin"
 def run(*args,input=None,timeout=600,check=True):
@@ -25,7 +31,12 @@ log=None
 try:
     print("Disk free GiB",round(shutil.disk_usage(root).free/2**30,2),"KVM",pathlib.Path("/dev/kvm").exists(),flush=True)
     run(tools/"sdkmanager","platform-tools","emulator","system-images;android-35;google_apis;x86_64")
-    run(tools/"avdmanager","create","avd","--force","--name","putnik-ci","--package","system-images;android-35;google_apis;x86_64","--device","pixel_6",input="no\n")
+    avd_path=avd_home/"putnik-ci.avd"
+    run(tools/"avdmanager","create","avd","--force","--name","putnik-ci","--path",avd_path,"--package","system-images;android-35;google_apis;x86_64","--device","pixel_6",input="no\n")
+    if not (avd_path/"config.ini").is_file():raise RuntimeError("avdmanager did not create the requested AVD config")
+    (avd_home/"putnik-ci.ini").write_text(f"avd.ini.encoding=UTF-8\npath={avd_path}\ntarget=android-35\n")
+    found=run(sdk/"emulator/emulator","-list-avds",timeout=30)
+    if "putnik-ci" not in found.stdout:raise RuntimeError("Created AVD is not visible to emulator")
     log=(evidence/"emulator.log").open("w")
     emulator=subprocess.Popen([str(sdk/"emulator/emulator"),"-avd","putnik-ci","-no-window","-no-audio","-no-boot-anim","-no-snapshot","-gpu","swiftshader","-memory","3072","-accel","on"],stdout=log,stderr=subprocess.STDOUT)
     run(adb,"wait-for-device",timeout=150)
