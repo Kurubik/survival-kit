@@ -8,6 +8,13 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.state.ToggleableState
+import androidx.lifecycle.ViewModelProvider
+import lv.putnik.core.ChatMode
+import lv.putnik.core.Personality
+import lv.putnik.core.Conversation
+import lv.putnik.core.DialogueTurn
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Rule
 import org.junit.Test
 
@@ -35,12 +42,94 @@ class PutnikUiTest {
     }
     @Test fun russianQuestionAsksForEquipmentThenProgresses() {
         compose.onNodeWithTag("tab-CHAT").performClick()
+        compose.onNodeWithTag("mode-GUIDED").performClick()
         compose.onNodeWithTag("question").performTextInput("Как разжечь огонь после дождя?")
         compose.onNodeWithTag("send").performClick()
         compose.onNodeWithText("Зажигалка",useUnmergedTree=true).assertExists()
         capture("02-companion")
         compose.onNodeWithText("Ничего",useUnmergedTree=true).performClick()
         compose.onNodeWithText("Не рассчитывай на трение",substring=true).assertExists()
+    }
+    @Test fun missingModelIsExplicitAndDoesNotPretendToBeAConversation() {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        val file=Packs.file(context,Packs.model)
+        val hidden=java.io.File(file.parentFile,"companion-ci-hidden.gguf")
+        val present=file.exists()
+        if(present)check(file.renameTo(hidden))
+        try {
+            lateinit var vm: PutnikModel
+            compose.runOnIdle {vm=ViewModelProvider(compose.activity)[PutnikModel::class.java];vm.clearChat();vm.setChatMode(ChatMode.FREE)}
+            compose.onNodeWithTag("tab-CHAT").performClick()
+            compose.onNodeWithTag("download-chat-model").assertIsDisplayed()
+            compose.onNodeWithTag("question").performTextInput("Привет! Хочу просто поболтать")
+            compose.onNodeWithTag("send").performClick()
+            compose.runOnIdle {
+                check(vm.messages.last().user)
+                check(!vm.messages.any {it.ai})
+                check(!vm.messages.any {it.text.contains("не нашлось надёжного ответа")})
+            }
+            capture("08-chat-setup")
+        } finally {if(present)check(hidden.renameTo(file))}
+    }
+
+    @Test fun freeConversationUsesRealNativeModelAndKeepsRecentDetails() {
+        val context=InstrumentationRegistry.getInstrumentation().targetContext
+        check(Packs.file(context,Packs.model).length()==Packs.model.bytes) {"Real pinned Qwen fixture is required, not a canned response"}
+        lateinit var vm: PutnikModel
+        compose.runOnIdle {
+            vm=ViewModelProvider(compose.activity)[PutnikModel::class.java]
+            vm.clearChat();vm.setChatMode(ChatMode.FREE);vm.setTone(Personality.WARM)
+        }
+        compose.onNodeWithTag("tab-CHAT").performClick()
+        val questions=listOf(
+            "Привет! Меня зовут Саша, а моего пса — Рыжик. Давай просто поболтаем, не про выживание. Поздоровайся с нами коротко.",
+            "Как зовут моего пса? Ответь одной короткой фразой.",
+            "Придумай очень длинную сказку про путешествие говорящего рюкзака, не меньше двадцати абзацев."
+        )
+        val answers=mutableListOf<String>()
+        val timings=mutableListOf<Long>()
+        for(question in questions.take(2)) {
+            val before=System.currentTimeMillis()
+            compose.onNodeWithTag("question").performTextInput(question)
+            compose.onNodeWithTag("send").performClick()
+            compose.waitUntil(timeoutMillis=240_000) {!vm.thinking&&vm.messages.count {it.ai}>answers.size}
+            val answer=vm.messages.last {it.ai}.text
+            check(answer.isNotBlank()&&Regex("[А-Яа-яЁё]").containsMatchIn(answer))
+            check(!answer.contains("<think>")&&!answer.contains("В загруженных памятках не нашлось"))
+            answers.add(answer);timings.add(System.currentTimeMillis()-before)
+        }
+        check(answers.last().lowercase().contains("рыжик")) {"Actual model did not recall the earlier personal detail"}
+        capture("07-free-conversation")
+        compose.onNodeWithTag("question").performTextInput(questions.last())
+        compose.onNodeWithTag("send").performClick()
+        compose.waitUntil(timeoutMillis=240_000) {vm.streaming.isNotBlank()}
+        compose.onNodeWithContentDescription("Остановить AI").performClick()
+        compose.waitUntil(timeoutMillis=10_000) {!vm.thinking}
+        Thread.sleep(1200)
+        check(vm.messages.count {it.ai}==2) {"A late response was committed after cancellation"}
+        // Stale lifecycle work must not unload a more recent request's model.
+        val stale=NativeLlama.startRequest();NativeLlama.startRequest()
+        NativeLlama.unload(stale);check(NativeLlama.isLoaded())
+        check(NativeLlama.generate(Conversation.prompt(listOf(DialogueTurn("Привет",true)),Personality.WARM).toByteArray(),null,stale).isEmpty())
+        val proof=JSONObject().put("model",Packs.model.filename).put("sha256",Packs.model.sha256)
+            .put("questions",JSONArray(questions)).put("answers",JSONArray(answers)).put("responseMilliseconds",JSONArray(timings))
+            .put("recentDetailRecalled",true).put("streamedTextObserved",true).put("lateResponseAfterCancel",false)
+            .put("staleRequestRejected",true).put("runtime","actual Android emulator JNI, no cloud API")
+        val resolver=context.contentResolver
+        val values=ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME,"llm-smoke.json");put(MediaStore.Downloads.MIME_TYPE,"application/json")
+            put(MediaStore.Downloads.RELATIVE_PATH,"Download/PutnikCI");put(MediaStore.Downloads.IS_PENDING,1)
+        }
+        val uri=requireNotNull(resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values))
+        resolver.openOutputStream(uri)!!.use {it.write(proof.toString(2).toByteArray(Charsets.UTF_8))}
+        values.clear();values.put(MediaStore.Downloads.IS_PENDING,0);resolver.update(uri,values,null,null)
+        compose.activityRule.scenario.recreate()
+        compose.runOnIdle {
+            val restored=ViewModelProvider(compose.activity)[PutnikModel::class.java]
+            check(restored.chatMode==ChatMode.FREE)
+            check(restored.messages.count {it.ai}==2)
+            check(restored.messages.last {it.ai}.text==answers.last())
+        }
     }
     @Test fun guidesAreReadableWithoutAModel() {
         compose.onNodeWithTag("topic-fire").performClick()

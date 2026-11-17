@@ -33,6 +33,9 @@ log=None
 screens_collected=False
 try:
     print("Disk free GiB",round(shutil.disk_usage(root).free/2**30,2),"KVM",pathlib.Path("/dev/kvm").exists(),flush=True)
+    ram=os.sysconf("SC_PAGE_SIZE")*os.sysconf("SC_PHYS_PAGES")
+    print("Builder RAM GiB",round(ram/2**30,2),flush=True)
+    if ram<12*2**30:raise RuntimeError("The real 4B Android inference gate needs a builder with at least 12GiB RAM")
     run(tools/"sdkmanager","platform-tools","emulator","system-images;android-35;google_apis;x86_64")
     avd_path=avd_home/"putnik-ci.avd"
     run(tools/"avdmanager","create","avd","--force","--name","putnik-ci","--path",avd_path,"--package","system-images;android-35;google_apis;x86_64","--device","pixel_6",input="no\n")
@@ -41,7 +44,8 @@ try:
     found=run(sdk/"emulator/emulator","-list-avds",timeout=30)
     if "putnik-ci" not in found.stdout:raise RuntimeError("Created AVD is not visible to emulator")
     log=(evidence/"emulator.log").open("w")
-    emulator=subprocess.Popen([str(sdk/"emulator/emulator"),"-avd","putnik-ci","-no-window","-no-audio","-no-boot-anim","-no-snapshot","-gpu","swiftshader","-memory","3072","-accel","on"],stdout=log,stderr=subprocess.STDOUT)
+    run("./gradlew","--stop",timeout=60)
+    emulator=subprocess.Popen([str(sdk/"emulator/emulator"),"-avd","putnik-ci","-no-window","-no-audio","-no-boot-anim","-no-snapshot","-gpu","swiftshader","-memory","6144","-partition-size","8192","-accel","on"],stdout=log,stderr=subprocess.STDOUT)
     run(adb,"wait-for-device",timeout=150)
     deadline=time.monotonic()+300
     while time.monotonic()<deadline:
@@ -55,15 +59,18 @@ try:
     run(adb,"install","-r",root/"app/build/outputs/apk/debug/app-debug.apk")
     run(adb,"shell","run-as","lv.putnik.survivalkit","mkdir","-p","files/packs")
     # Stream through stdin: application SELinux domains cannot read shell_data_file.
-    with pathlib.Path("/tmp/latvia.map").open("rb") as source:
-        result=subprocess.run([adb,"shell","-T","run-as lv.putnik.survivalkit sh -c 'cat > files/packs/latvia.map'"],stdin=source,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=90)
-        print(result.stdout,flush=True)
-        if result.returncode:raise RuntimeError("Could not install private map fixture: "+result.stdout)
-    fixture=run(adb,"shell","run-as","lv.putnik.survivalkit","sha256sum","files/packs/latvia.map")
-    if not fixture.stdout.startswith("72c93a1527458ab589accba21f85cdd8a529381a7c549346701ef3efbf756b2d "):raise RuntimeError("Installed emulator map fixture checksum does not match")
+    fixtures=[("/tmp/latvia.map","latvia.map","72c93a1527458ab589accba21f85cdd8a529381a7c549346701ef3efbf756b2d"),
+              ("/tmp/putnik-qwen3-4b.gguf","companion.gguf","7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5")]
+    for source_path,name,digest in fixtures:
+        with pathlib.Path(source_path).open("rb") as source:
+            result=subprocess.run([adb,"shell","-T",f"run-as lv.putnik.survivalkit sh -c 'cat > files/packs/{name}'"],stdin=source,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=300)
+            print(result.stdout,flush=True)
+            if result.returncode:raise RuntimeError("Could not install private fixture: "+name)
+        fixture=run(adb,"shell","run-as","lv.putnik.survivalkit","sha256sum","files/packs/"+name,timeout=120)
+        if not fixture.stdout.startswith(digest+" "):raise RuntimeError("Installed emulator fixture checksum does not match: "+name)
     run(adb,"shell","svc","wifi","disable")
     run(adb,"shell","svc","data","disable")
-    run(sys.executable,"tools/ci-run.py","./gradlew",":app:connectedDebugAndroidTest","--stacktrace",timeout=900)
+    run(sys.executable,"tools/ci-run.py","./gradlew","-Dorg.gradle.jvmargs=-Xmx1536m -Dfile.encoding=UTF-8",":app:connectedDebugAndroidTest","--no-parallel","--max-workers=2","--stacktrace",timeout=1200)
     def suites(directory):
         results=[]
         for path in pathlib.Path(directory).rglob("TEST-*.xml"):
@@ -73,13 +80,16 @@ try:
         return results
     unit=suites("core/build/test-results/test")
     android=suites("app/build/outputs/androidTest-results")
-    if sum(s["tests"]for s in unit)!=7 or sum(s["tests"]for s in android)!=5:raise RuntimeError("Expected seven core and five Android cases, not an empty successful invocation")
+    if sum(s["tests"]for s in unit)!=16 or sum(s["tests"]for s in android)!=7:raise RuntimeError("Expected sixteen core and seven Android cases, not an empty successful invocation")
     if any(s["failures"]+s["errors"]+s["skipped"] for s in unit+android):raise RuntimeError("A required test failed or was skipped")
     run(adb,"pull","/sdcard/Pictures/PutnikCI",evidence/"screenshots",timeout=30)
     pictures=list((evidence/"screenshots").glob("*.png"))
-    if len(pictures)!=6:raise RuntimeError(f"Expected six real Android screenshots; found {len(pictures)}")
+    if len(pictures)!=8:raise RuntimeError(f"Expected eight real Android screenshots; found {len(pictures)}")
     screens_collected=True
-    (evidence/"verification.json").write_text(json.dumps({"commit":os.environ.get("GITHUB_SHA"),"unit":unit,"android_emulator":android,"screenshots":[p.name for p in pictures],"network":"emulator Wi-Fi and mobile data disabled","device_quality_verified":False},ensure_ascii=False,indent=2))
+    run(adb,"pull","/sdcard/Download/PutnikCI",evidence/"native",timeout=30)
+    proof=json.loads((evidence/"native/llm-smoke.json").read_text())
+    if not proof["recentDetailRecalled"] or not proof["streamedTextObserved"] or proof["lateResponseAfterCancel"] or not proof["staleRequestRejected"]:raise RuntimeError("Actual native conversation proof is incomplete")
+    (evidence/"verification.json").write_text(json.dumps({"commit":os.environ.get("GITHUB_SHA"),"unit":unit,"android_emulator":android,"screenshots":[p.name for p in pictures],"native_inference":{"model_sha256":proof["sha256"],"runtime":proof["runtime"],"recent_detail_recalled":True,"streamed_text_observed":True,"cancellation_verified":True},"network":"emulator Wi-Fi and mobile data disabled","device_quality_verified":False},ensure_ascii=False,indent=2))
 except Exception:
     if log:log.flush()
     if (evidence/"emulator.log").exists():print((evidence/"emulator.log").read_text(errors="replace")[-7000:],flush=True)

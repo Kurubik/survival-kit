@@ -1,5 +1,9 @@
 # Implementation log
 
+## Conversational companion follow-up — 2026-11-17
+
+Owner feedback Telegram12873: free conversation feels scripted and limited to the loaded cards. The same primary agent owns this follow-up and its GitHub/APK publication in this repository. Add a default conversational local-AI mode with bounded recent dialogue, contextual personality and streamed answers; retain an explicit model-independent step-by-step mode. Missing/downloaded/loaded models must be distinguished. No cloud service, account, API secret or unrelated production change is authorized or introduced. Verify actual native model inference in CI rather than inferring it from prompt or UI fixtures; phone quality and performance remain separate.
+
 ## Authorization and ownership
 
 2026-11-17: after the plan, two concept boards, selection of the first visual direction and clarification of Latvia/modern Android devices, the owner asked whether implementation was proceeding. Implementation is now in progress under the original app-and-GitHub request. The primary agent owns this entire new repository and the final GitHub push; no other repository or deployment is in scope.

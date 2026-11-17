@@ -32,12 +32,22 @@ jobs:
         run: |
           curl -fL --retry 2 https://download.mapsforge.org/maps/v5/europe/latvia.map -o /tmp/latvia.map
           echo '72c93a1527458ab589accba21f85cdd8a529381a7c549346701ef3efbf756b2d  /tmp/latvia.map' | sha256sum -c -
+      - uses: actions/cache@v4
+        with:
+          path: /tmp/putnik-qwen3-4b.gguf
+          key: qwen3-4b-7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5
+      - name: Download and verify actual local AI fixture
+        run: |
+          if [ ! -f /tmp/putnik-qwen3-4b.gguf ]; then
+            curl -fL --retry 2 --connect-timeout 20 --max-time 600 'https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/bc640142c66e1fdd12af0bd68f40445458f3869b/Qwen3-4B-Q4_K_M.gguf' -o /tmp/putnik-qwen3-4b.gguf
+          fi
+          echo '7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5  /tmp/putnik-qwen3-4b.gguf' | sha256sum -c -
       - name: Enable emulator acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Real Android emulator UI and offline map checks
+      - name: Real Android UI, offline map and native conversation checks
         run: python3 tools/ci-run.py python3 tools/emulator-check.py
       - name: Save alpha and verification evidence
         if: always()
@@ -70,6 +80,7 @@ jobs:
           mkdir -p release
           cp output/app/build/outputs/apk/debug/app-debug.apk release/putnik-alpha.apk
           cp output/evidence/verification.json release/verification.json
+          cp output/evidence/native/llm-smoke.json release/llm-smoke.json
           (cd release && sha256sum putnik-alpha.apk > SHA256SUMS)
           (cd output/evidence/screenshots && zip -r ../../../release/android-emulator-screenshots.zip .)
           gh release create "alpha-${{ github.run_number }}" release/* --prerelease --target "$GITHUB_SHA" --title "Путник · Android alpha ${{ github.run_number }}" --notes-file docs/ALPHA.md

@@ -182,20 +182,52 @@ private fun guideIcon(id: String): ImageVector = when(id) { "fire"->Icons.Outlin
     LaunchedEffect(vm.recognizedDraft) { if(vm.recognizedDraft.isNotBlank()){question=vm.recognizedDraft;vm.recognizedDraft=""} }
     val list=rememberLazyListState()
     val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> if(granted)vm.voice.listen() else vm.voiceStatus="Можно написать вопрос — микрофон не обязателен" }
-    LaunchedEffect(vm.messages.size,vm.thinking) { if(vm.messages.isNotEmpty())list.animateScrollToItem(vm.messages.lastIndex) }
+    LaunchedEffect(vm.messages.size,vm.streaming,vm.thinking) {
+        val total=vm.messages.size+(if(vm.streaming.isNotBlank())1 else 0)+(if(vm.thinking)1 else 0)
+        if(total>0)list.animateScrollToItem(total-1)
+    }
     Column(Modifier.fillMaxSize().padding(horizontal=16.dp)) {
-        Row(Modifier.padding(bottom=10.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) { Badge(vm.personality.label);Badge(if(vm.modelReady)"ЛОКАЛЬНЫЙ AI" else "ПО ПАМЯТКАМ") }
+        Row(Modifier.padding(bottom=4.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            Badge(vm.personality.label)
+            Badge(if(vm.chatMode==ChatMode.GUIDED)"ПАМЯТКИ"else if(vm.modelReady)"ЛОКАЛЬНЫЙ AI"else if(vm.installed(Packs.model))"AI НА ТЕЛЕФОНЕ"else"AI НЕ СКАЧАН")
+        }
+        Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            ChatMode.entries.forEach { mode->FilterChip(selected=vm.chatMode==mode,onClick={vm.setChatMode(mode)},label={Text(mode.label)},modifier=Modifier.testTag("mode-${mode.name}")) }
+        }
+        if(vm.chatMode==ChatMode.FREE&&!vm.installed(Packs.model)) {
+            PaperPanel(Modifier.fillMaxWidth().padding(bottom=8.dp)) {
+                Text("Для живого разговора нужен AI",fontFamily=Heading,fontSize=23.sp)
+                Text("Один раз скачай модель 2,5 ГБ — дальше можно болтать без интернета. «По шагам» работает сразу.",fontSize=12.sp,lineHeight=17.sp)
+                if(vm.activePack=="model") {
+                    LinearProgressIndicator(progress={vm.downloadBytes.toFloat()/Packs.model.bytes},modifier=Modifier.fillMaxWidth(),color=Moss)
+                    Text("${formatBytes(vm.downloadBytes)} / ${formatBytes(Packs.model.bytes)}",fontSize=11.sp)
+                    TextButton(onClick=vm::cancelDownload){Text("Остановить загрузку")}
+                } else Button(onClick={vm.install(Packs.model)},enabled=vm.activePack==null,modifier=Modifier.testTag("download-chat-model")) {Text("Скачать AI · 2,5 ГБ")}
+                if(vm.packStatus.isNotBlank())Text(vm.packStatus,fontSize=11.sp)
+            }
+        } else if(vm.chatMode==ChatMode.FREE) {
+            Row(verticalAlignment=Alignment.CenterVertically) {
+                Text(vm.modelStatus,Modifier.weight(1f),fontSize=11.sp,lineHeight=15.sp)
+                if(!vm.thinking&&vm.messages.lastOrNull()?.let {it.user&&it.mode==ChatMode.FREE}==true)TextButton(onClick=vm::retryConversation){Text("Повторить")}
+            }
+        }
         LazyColumn(Modifier.weight(1f).fillMaxWidth().testTag("messages"),state=list,verticalArrangement=Arrangement.spacedBy(12.dp),contentPadding=PaddingValues(bottom=12.dp)) {
             itemsIndexed(vm.messages) { _,message ->
                 Row(Modifier.fillMaxWidth(),horizontalArrangement=if(message.user)Arrangement.End else Arrangement.Start) {
                     PaperPanel(Modifier.fillMaxWidth(if(message.user).91f else 1f)) {
-                        Text(if(message.user)"Ты" else "Спутник",fontSize=11.sp,color=Moss,fontWeight=FontWeight.Bold)
+                        Text(if(message.user)"Ты" else if(message.ai)"Спутник · AI"else if(message.mode==ChatMode.GUIDED)"Спутник · памятка"else"Спутник",fontSize=11.sp,color=Moss,fontWeight=FontWeight.Bold)
                         Text(message.text,fontFamily=Body,fontSize=16.sp,lineHeight=24.sp)
                         if(!message.user) Row(verticalAlignment=Alignment.CenterVertically) {
                             message.guideId?.let { id -> TextButton(onClick={GuideLibrary.byId(id)?.let(vm::openGuide)}) { Icon(Icons.Outlined.MenuBook,null,Modifier.size(16.dp));Spacer(Modifier.width(6.dp));Text("Памятка и источники",fontSize=12.sp) } }
                             Spacer(Modifier.weight(1f));IconButton(onClick={vm.voice.speak(message.text)}) { Icon(Icons.Outlined.VolumeUp,"Прочитать ответ",tint=Moss) }
                         }
                     }
+                }
+            }
+            if(vm.streaming.isNotBlank())item {
+                PaperPanel(Modifier.fillMaxWidth().testTag("streaming-answer")) {
+                    Text("Спутник · AI",fontSize=11.sp,color=Moss,fontWeight=FontWeight.Bold)
+                    Text(vm.streaming,fontFamily=Body,fontSize=16.sp,lineHeight=24.sp)
                 }
             }
             if(vm.thinking)item { Row(verticalAlignment=Alignment.CenterVertically) { CircularProgressIndicator(Modifier.size(18.dp),color=Brass,strokeWidth=2.dp);Spacer(Modifier.width(10.dp));Text("Спутник думает на устройстве…",fontSize=12.sp);IconButton(onClick=vm::cancelGeneration) { Icon(Icons.Outlined.Close,"Остановить AI") } } }
@@ -239,8 +271,8 @@ private fun guideIcon(id: String): ImageVector = when(id) { "fire"->Icons.Outlin
         itemsIndexed(guide.steps) { index,step -> PaperPanel(Modifier.fillMaxWidth()) { Text("${index+1} / ${guide.steps.size}",fontSize=12.sp,color=Moss,fontWeight=FontWeight.Bold);Text(step,fontSize=17.sp,lineHeight=25.sp) } }
         item { PaperPanel(Modifier.fillMaxWidth()) { Row(verticalAlignment=Alignment.CenterVertically) { Icon(Icons.Outlined.WarningAmber,null,tint=Rust);Spacer(Modifier.width(8.dp));Text("Важно",fontFamily=Heading,fontSize=27.sp,color=Rust) };guide.warnings.forEach { Text("• $it",fontSize=14.sp,lineHeight=21.sp) } } }
         item { Action("Слушать памятку",Icons.Outlined.VolumeUp,Modifier.fillMaxWidth()) {vm.voice.speak((guide.steps+guide.warnings).joinToString(" "))} }
-        item { Action("Разобрать со спутником",Icons.Outlined.ChatBubbleOutline,Modifier.fillMaxWidth()) {vm.ask(guide.title)} }
-        if(vm.modelReady&&!guide.critical)item { OutlinedButton(onClick={vm.ask("Объясни подробнее: ${guide.title}")},modifier=Modifier.fillMaxWidth()) {Text("Пояснение локального AI")} }
+        item { Action("Разобрать по шагам",Icons.Outlined.ChatBubbleOutline,Modifier.fillMaxWidth()) {vm.discussGuide(guide)} }
+        if(vm.installed(Packs.model)&&!guide.critical)item { OutlinedButton(onClick={vm.setChatMode(ChatMode.FREE);vm.ask("Давай обсудим: ${guide.title}")},modifier=Modifier.fillMaxWidth()) {Text("Обсудить с AI")} }
         item { PaperPanel(Modifier.fillMaxWidth()) {
             Text("Источники",fontFamily=Heading,fontSize=27.sp)
             Text("Краткое изложение хранится в приложении. Оригиналы открываются в браузере и могут требовать сеть. Отдельная профессиональная проверка карточек ещё не проведена.",fontSize=11.sp,lineHeight=16.sp)
@@ -270,7 +302,7 @@ private fun guideIcon(id: String): ImageVector = when(id) { "fire"->Icons.Outlin
                 if(pack.id=="model"&&installed) {
                     Text(vm.modelStatus,fontSize=12.sp)
                     Action(if(vm.modelReady)"Выгрузить AI из памяти" else "Включить локальный AI",Icons.Outlined.AutoAwesome,Modifier.fillMaxWidth(),enabled=!vm.thinking) {if(vm.modelReady)vm.unloadModel()else vm.enableModel()}
-                    Text("Без AI спутник ведёт по памяткам. С AI доступны дополнительные пояснения; их качество на твоём телефоне ещё предстоит оценить.",fontSize=11.sp,lineHeight=16.sp)
+                    Text("С AI можно свободно разговаривать с учётом последних реплик, не только о памятках. Модель откроется автоматически при сообщении. «По шагам» работает без AI.",fontSize=11.sp,lineHeight=16.sp)
                 }
             }
         }
@@ -322,7 +354,7 @@ private fun guideIcon(id: String): ImageVector = when(id) { "fire"->Icons.Outlin
         item { PaperPanel(Modifier.fillMaxWidth()) {
             SectionTitle("Характер спутника")
             Personality.entries.forEach { value->Row(Modifier.fillMaxWidth().clickable{vm.setTone(value)}.heightIn(min=48.dp),verticalAlignment=Alignment.CenterVertically) {RadioButton(vm.personality==value,{vm.setTone(value)});Text(value.label)} }
-            Text("Pohuy Ultra задаёт манеру локального AI. Медицинские и экстренные карточки всегда нейтральны. Без AI ответы остаются сценарными.",fontSize=12.sp,lineHeight=18.sp)
+            Text("Pohuy Ultra задаёт характер свободного диалога. Экстренные карточки всегда нейтральны. «Поговорить» использует AI; «По шагам» — автономные памятки.",fontSize=12.sp,lineHeight=18.sp)
         } }
         item { PaperPanel(Modifier.fillMaxWidth()) {
             SectionTitle("Голос")

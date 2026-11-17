@@ -14,9 +14,11 @@ import kotlinx.coroutines.*
 import lv.putnik.core.*
 import org.json.JSONArray
 import org.json.JSONObject
+import java.nio.ByteBuffer
+import java.nio.charset.CodingErrorAction
 
 enum class Page { CAMP, CHAT, MAP, PACK, LIBRARY, GUIDE, HELP, SETTINGS }
-data class ChatMessage(val text: String, val user: Boolean, val guideId: String?=null)
+data class ChatMessage(val text: String, val user: Boolean, val guideId: String?=null, val ai: Boolean=false, val mode: ChatMode?=null)
 
 class PutnikModel(app: Application): AndroidViewModel(app), LocationListener {
     private val prefs=app.getSharedPreferences("putnik",Context.MODE_PRIVATE)
@@ -24,6 +26,7 @@ class PutnikModel(app: Application): AndroidViewModel(app), LocationListener {
     var page by mutableStateOf(Page.CAMP)
     var selectedGuide by mutableStateOf<Guide?>(null)
     var personality by mutableStateOf(runCatching { Personality.valueOf(prefs.getString("personality","ULTRA")!!) }.getOrDefault(Personality.ULTRA))
+    var chatMode by mutableStateOf(runCatching { ChatMode.valueOf(prefs.getString("chatMode","FREE")!!) }.getOrDefault(ChatMode.FREE))
     var daylight by mutableStateOf(prefs.getBoolean("daylight",false))
     var note by mutableStateOf(prefs.getString("note","").orEmpty())
     var voiceStatus by mutableStateOf("Проверяю русский голос…")
@@ -36,9 +39,10 @@ class PutnikModel(app: Application): AndroidViewModel(app), LocationListener {
     var packVersion by mutableIntStateOf(0)
     var modelReady by mutableStateOf(false)
     var thinking by mutableStateOf(false)
+    var streaming by mutableStateOf("")
     var modelStatus by mutableStateOf("AI не загружен в память")
     val messages=mutableStateListOf<ChatMessage>()
-    var choices by mutableStateOf(listOf("Огонь", "Вода", "Укрытие", "Я потерялся"))
+    var choices by mutableStateOf(if(chatMode==ChatMode.GUIDED)listOf("Огонь", "Вода", "Укрытие", "Я потерялся")else emptyList())
     val checked=mutableStateMapOf<String,Boolean>()
     val bookmarks=mutableStateListOf<String>()
     var location by mutableStateOf<Location?>(null)
@@ -57,44 +61,82 @@ class PutnikModel(app: Application): AndroidViewModel(app), LocationListener {
         bookmarks.addAll(prefs.getStringSet("bookmarks",emptySet())!!.toList())
         runCatching {
             val array=JSONArray(prefs.getString("history","[]"))
-            for(i in 0 until array.length()) { val o=array.getJSONObject(i);messages.add(ChatMessage(o.getString("text"),o.getBoolean("user"),o.optString("guide").ifBlank { null })) }
+            for(i in 0 until array.length()) { val o=array.getJSONObject(i);messages.add(ChatMessage(o.getString("text"),o.getBoolean("user"),o.optString("guide").ifBlank { null },o.optBoolean("ai",false),runCatching {ChatMode.valueOf(o.optString("mode"))}.getOrNull())) }
             if(prefs.contains("campLat"))camp=Location("saved").apply { latitude=prefs.getString("campLat","0")!!.toDouble();longitude=prefs.getString("campLon","0")!!.toDouble();time=prefs.getLong("campTime",0) }
             val points=JSONArray(prefs.getString("track","[]"))
             for(i in 0 until points.length()) { val p=points.getJSONArray(i);track.add(Location("saved").apply {latitude=p.getDouble(0);longitude=p.getDouble(1);time=p.getLong(2)}) }
         }
-        if(messages.isEmpty())messages.add(ChatMessage("Я Путник. Помогу найти памятку, собрать рюкзак и пройти действия по шагам. Что нужно сейчас?",false))
+        if(messages.isEmpty())messages.add(ChatMessage("Я Путник. Можно просто поболтать, обсудить идеи или собраться в поход. Для живого разговора нужна локальная AI-модель; памятки по шагам работают и без неё.",false))
     }
     fun openGuide(guide: Guide) { selectedGuide=guide;page=Page.GUIDE }
     fun ask(text: String, fromVoice: Boolean=false) {
         val input=text.trim().take(1500);if(input.isEmpty())return
         cancelGeneration();page=Page.CHAT
-        messages.add(ChatMessage(input,true))
-        val reply=engine.ask(input,personality)
-        choices=reply.choices
-        messages.add(ChatMessage(reply.text,false,reply.guide?.id));persistHistory()
-        if(fromVoice || autoRead)voice.speak(reply.text)
-        val explanation=GuideLibrary.normalize(input).let { it.contains("объясни")||it.contains("почему")||it.contains("подробнее") }
-        val guide=reply.guide
-        if(modelReady && explanation && guide!=null && !reply.critical) {
-            thinking=true;val token=++requestId
-            generationJob=viewModelScope.launch {
-                try {
-                    val answer=withContext(Dispatchers.IO) { NativeLlama.generate(engine.prompt(input,guide,personality)).toString(Charsets.UTF_8).trim() }
-                    if(token!=requestId)return@launch
-                    if(engine.validModelAnswer(answer,guide)) {
-                        messages.add(ChatMessage("Пояснение AI · сверяй действия с памяткой\n\n$answer",false,guide.id));persistHistory()
-                        if(fromVoice||autoRead)voice.speak(answer)
-                    } else messages.add(ChatMessage("AI не дал достаточно надёжного пояснения. Используй текст памятки выше.",false,guide.id))
-                } catch(_: CancellationException) { } catch(_: Exception) {
-                    if(token==requestId)modelStatus="AI недоступен; памятки продолжают работать"
-                } finally { if(token==requestId)thinking=false;scheduleIdleUnload() }
+        messages.add(ChatMessage(input,true,mode=chatMode));persistHistory()
+        val reply=Conversation.emergency(input) ?: if(chatMode==ChatMode.GUIDED)engine.ask(input,personality)else null
+        if(reply!=null) {
+            choices=reply.choices
+            messages.add(ChatMessage(reply.text,false,reply.guide?.id,mode=chatMode));persistHistory()
+            if(fromVoice||autoRead)voice.speak(reply.text)
+            return
+        }
+        choices=emptyList()
+        if(!installed(Packs.model)) {modelStatus="Скачай AI-модель для свободного разговора. Вопрос сохранён.";return}
+        generateConversation(input,fromVoice)
+    }
+    private suspend fun loadModel(request: Long) {
+        check(NativeLlama.available) {"Локальный AI не поддерживается на этом устройстве"}
+        if(!NativeLlama.isLoaded()) {
+            val info=ActivityManager.MemoryInfo();getApplication<Application>().getSystemService(ActivityManager::class.java).getMemoryInfo(info)
+            check(info.availMem>3_200_000_000L) {"Для AI сейчас мало свободной памяти. Закрой другие приложения; памятки доступны и без модели."}
+        }
+        check(NativeLlama.load(Packs.file(getApplication(),Packs.model).absolutePath,request).isBlank()) {"Не удалось открыть AI-модель. Можно повторить загрузку в память."}
+    }
+    private fun generateConversation(input: String,fromVoice: Boolean=false) {
+        idleJob?.cancel();thinking=true;streaming="";modelStatus="Открываю спутника на устройстве…"
+        val token=++requestId
+        val request=if(NativeLlama.available)NativeLlama.startRequest()else 0L
+        val guide=GuideLibrary.search(input).firstOrNull { !it.critical }
+        val history=messages.filter {it.mode==ChatMode.FREE}.map {DialogueTurn(it.text,it.user)}
+        val prompt=Conversation.prompt(history,personality,guide)
+        generationJob=viewModelScope.launch {
+            try {
+                val answer=withContext(Dispatchers.IO) {
+                    loadModel(request)
+                    withContext(Dispatchers.Main) {if(token==requestId){modelReady=true;modelStatus="Живой диалог · на устройстве"}}
+                    val listener=NativeLlama.Listener { bytes->
+                        val decoded=Charsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.IGNORE).onUnmappableCharacter(CodingErrorAction.IGNORE).decode(ByteBuffer.wrap(bytes)).toString()
+                        val visible=Conversation.visibleAnswer(decoded)
+                        viewModelScope.launch(Dispatchers.Main.immediate) {if(token==requestId&&thinking)streaming=visible}
+                    }
+                    Conversation.visibleAnswer(NativeLlama.generate(prompt.toByteArray(Charsets.UTF_8),listener,request).toString(Charsets.UTF_8))
+                }
+                if(token!=requestId)return@launch
+                check(answer.isNotBlank()) {"Спутник не закончил ответ. Попробуй ещё раз."}
+                messages.add(ChatMessage(answer,false,guide?.id,ai=true,mode=ChatMode.FREE));persistHistory()
+                if(fromVoice||autoRead)voice.speak(answer)
+            } catch(_: CancellationException) { }
+            catch(e: Exception) {
+                if(token==requestId)modelStatus=e.message ?: "Не удалось получить ответ. Можно повторить вопрос."
+            } finally {
+                if(token==requestId){thinking=false;streaming="";if(modelReady)scheduleIdleUnload()}
             }
         }
     }
-    fun cancelGeneration() { requestId++;generationJob?.cancel();if(NativeLlama.available)NativeLlama.cancel();thinking=false;voice.stopSpeaking() }
-    fun clearChat() { cancelGeneration();engine.reset();messages.clear();messages.add(ChatMessage("Начнём с новой задачи. Что случилось?",false));persistHistory() }
+    fun setChatMode(value: ChatMode) {
+        cancelGeneration();engine.reset();chatMode=value;prefs.edit().putString("chatMode",value.name).apply()
+        choices=if(value==ChatMode.GUIDED)listOf("Огонь", "Вода", "Укрытие", "Я потерялся")else emptyList()
+    }
+    fun discussGuide(guide: Guide) {setChatMode(ChatMode.GUIDED);ask(guide.title)}
+    fun retryConversation() {
+        if(thinking)return
+        val last=messages.lastOrNull()?:return
+        if(last.user&&last.mode==ChatMode.FREE&&installed(Packs.model))generateConversation(last.text)
+    }
+    fun cancelGeneration() { requestId++;generationJob?.cancel();if(NativeLlama.available)NativeLlama.cancel();if(thinking)modelStatus="Ответ остановлен";thinking=false;streaming="";voice.stopSpeaking() }
+    fun clearChat() { cancelGeneration();engine.reset();messages.clear();messages.add(ChatMessage("Начнём новую беседу. О чём поговорим?",false));persistHistory() }
     private fun persistHistory() {
-        val array=JSONArray();messages.takeLast(40).forEach { m -> array.put(JSONObject().put("text",m.text).put("user",m.user).put("guide",m.guideId.orEmpty())) }
+        val array=JSONArray();messages.takeLast(40).forEach { m -> array.put(JSONObject().put("text",m.text).put("user",m.user).put("guide",m.guideId.orEmpty()).put("ai",m.ai).put("mode",m.mode?.name.orEmpty())) }
         prefs.edit().putString("history",array.toString()).apply()
     }
     fun setTone(value: Personality) { personality=value;prefs.edit().putString("personality",value.name).apply() }
@@ -111,6 +153,7 @@ class PutnikModel(app: Application): AndroidViewModel(app), LocationListener {
             try {
                 withContext(Dispatchers.IO) { Packs.install(getApplication(),pack) { count -> downloadBytes=count } }
                 packVersion++;packStatus="${pack.title}: установлен, SHA-256 проверен"
+                if(pack.id=="model"&&chatMode==ChatMode.FREE&&messages.lastOrNull()?.user==true){page=Page.CHAT;retryConversation()}
             } catch(_: CancellationException) { packStatus="Загрузка остановлена; прежние пакеты сохранены" }
             catch(e: Exception) { packStatus=e.message ?: "Не удалось загрузить пакет" }
             finally { activePack=null }
@@ -120,22 +163,19 @@ class PutnikModel(app: Application): AndroidViewModel(app), LocationListener {
     fun enableModel() {
         if(!installed(Packs.model)) { page=Page.PACK;packStatus="Сначала скачай AI-пакет";return }
         if(thinking)return
+        if(chatMode==ChatMode.FREE&&messages.lastOrNull()?.let {it.user&&it.mode==ChatMode.FREE}==true){page=Page.CHAT;retryConversation();return}
         thinking=true;modelStatus="Открываю модель на устройстве…"
         val token=++requestId
+        val request=if(NativeLlama.available)NativeLlama.startRequest()else 0L
         generationJob=viewModelScope.launch {
             try {
-                val error=withContext(Dispatchers.IO) {
-                    check(NativeLlama.available) { "AI runtime не поддерживается на этом устройстве" }
-                    val info=ActivityManager.MemoryInfo();getApplication<Application>().getSystemService(ActivityManager::class.java).getMemoryInfo(info)
-                    check(info.availMem>3_200_000_000L) { "Для этой модели сейчас мало свободной RAM. Закрой другие приложения или используй справочник." }
-                    NativeLlama.load(Packs.file(getApplication(),Packs.model).absolutePath)
-                }
-                if(token==requestId){modelReady=error.isBlank();modelStatus=if(modelReady)"Qwen3 4B · на устройстве" else "Не удалось открыть AI-модель";scheduleIdleUnload()}
+                withContext(Dispatchers.IO) {loadModel(request)}
+                if(token==requestId){modelReady=true;modelStatus="Qwen3 4B · живой диалог на устройстве";scheduleIdleUnload()}
             } catch(e: Exception) { if(token==requestId)modelStatus=e.message ?: "Не удалось открыть модель" }
             finally { if(token==requestId)thinking=false }
         }
     }
-    fun unloadModel() { cancelGeneration();idleJob?.cancel();modelReady=false;modelStatus="AI выгружен; справочник доступен";viewModelScope.launch(Dispatchers.IO) { if(NativeLlama.available)NativeLlama.unload() } }
+    fun unloadModel() { cancelGeneration();idleJob?.cancel();modelReady=false;modelStatus="AI отдыхает; откроется при следующей реплике";if(NativeLlama.available){val request=NativeLlama.startRequest();viewModelScope.launch(Dispatchers.IO) {NativeLlama.unload(request)}} }
     private fun scheduleIdleUnload() { idleJob?.cancel();idleJob=viewModelScope.launch { delay(120000);unloadModel() } }
     fun startPosition(record: Boolean=false) {
         try {
