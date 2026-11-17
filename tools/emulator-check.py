@@ -35,7 +35,8 @@ native_collected=False
 try:
     print("Disk free GiB",round(shutil.disk_usage(root).free/2**30,2),"KVM",pathlib.Path("/dev/kvm").exists(),flush=True)
     ram=os.sysconf("SC_PAGE_SIZE")*os.sysconf("SC_PHYS_PAGES")
-    print("Builder RAM GiB",round(ram/2**30,2),flush=True)
+    emulator_cores=min(4,os.cpu_count()or 1)
+    print("Builder RAM GiB",round(ram/2**30,2),"cores",os.cpu_count(),"emulator cores",emulator_cores,flush=True)
     if ram<12*2**30:raise RuntimeError("The real 4B Android inference gate needs a builder with at least 12GiB RAM")
     run(tools/"sdkmanager","platform-tools","emulator","system-images;android-35;google_apis;x86_64")
     avd_path=avd_home/"putnik-ci.avd"
@@ -46,7 +47,7 @@ try:
     if "putnik-ci" not in found.stdout:raise RuntimeError("Created AVD is not visible to emulator")
     log=(evidence/"emulator.log").open("w")
     run("./gradlew","--stop",timeout=60)
-    emulator=subprocess.Popen([str(sdk/"emulator/emulator"),"-avd","putnik-ci","-no-window","-no-audio","-no-boot-anim","-no-snapshot","-gpu","swiftshader","-memory","6144","-partition-size","8192","-accel","on"],stdout=log,stderr=subprocess.STDOUT)
+    emulator=subprocess.Popen([str(sdk/"emulator/emulator"),"-avd","putnik-ci","-no-window","-no-audio","-no-boot-anim","-no-snapshot","-gpu","swiftshader","-memory","6144","-cores",str(emulator_cores),"-partition-size","8192","-accel","on"],stdout=log,stderr=subprocess.STDOUT)
     run(adb,"wait-for-device",timeout=150)
     deadline=time.monotonic()+300
     while time.monotonic()<deadline:
