@@ -81,7 +81,7 @@ class PutnikModel(app: Application): AndroidViewModel(app), LocationListener {
                     val answer=withContext(Dispatchers.IO) { NativeLlama.generate(engine.prompt(input,guide,personality)).toString(Charsets.UTF_8).trim() }
                     if(token!=requestId)return@launch
                     if(engine.validModelAnswer(answer,guide)) {
-                        messages.add(ChatMessage(answer,false,guide.id));persistHistory()
+                        messages.add(ChatMessage("Пояснение AI · сверяй действия с памяткой\n\n$answer",false,guide.id));persistHistory()
                         if(fromVoice||autoRead)voice.speak(answer)
                     } else messages.add(ChatMessage("AI не дал достаточно надёжного пояснения. Используй текст памятки выше.",false,guide.id))
                 } catch(_: CancellationException) { } catch(_: Exception) {
@@ -154,7 +154,7 @@ class PutnikModel(app: Application): AndroidViewModel(app), LocationListener {
     override fun onProviderDisabled(provider: String) { locationStatus="GPS отключён" }
     override fun onProviderEnabled(provider: String) {}
     @Deprecated("Legacy callback") override fun onStatusChanged(provider: String?,status: Int,extras: Bundle?) {}
-    fun stopPosition() { locator.removeUpdates(this);tracking=false }
+    fun stopPosition() { runCatching { locator.removeUpdates(this) };tracking=false }
     fun saveCamp() { val current=location ?: return;camp=Location(current);prefs.edit().putString("campLat",current.latitude.toString()).putString("campLon",current.longitude.toString()).putLong("campTime",current.time).apply() }
     fun clearTrack() { track.clear();prefs.edit().remove("track").apply() }
     fun pause() { voice.stopListening();voice.stopSpeaking();listening=false;stopPosition();unloadModel() }

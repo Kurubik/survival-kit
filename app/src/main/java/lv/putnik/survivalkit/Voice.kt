@@ -49,7 +49,7 @@ class Voice(private val context: Context, private val scope: CoroutineScope, pri
             scope.launch(Dispatchers.IO) {
                 try {
                     if(model==null)model=Model(Packs.voiceDir(context).absolutePath)
-                    val recognizer=Recognizer(model,16000f)
+                    val recognizer=Recognizer(requireNotNull(model),16000f)
                     withContext(Dispatchers.Main) {
                         if(token!=generation || !listening) { recognizer.close();return@withContext }
                         val next=SpeechService(recognizer,16000f);service=next

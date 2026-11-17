@@ -15,3 +15,10 @@ Local host is Linux arm64 with Java 21. The documented `/opt/android-sdk` is abs
 ## Publication
 
 The user requested the destination `Kurubik/survival-kit`. Initial remote was empty. Publish only this repository's intended source, licenses and evidence; never model weights, credentials, machine profiles or source user history. Alpha limitations must remain visible in README and application readiness screens.
+
+## Verification observations
+
+- Portable engine: seven JUnit tests passed locally on Java 21 (Russian search/forms, equipment negation, stateful steps, emergency precedence, unknown knowledge, invalid model output and source keys).
+- Vosk RU and Latvia map were downloaded into the private research directory; exact byte counts and SHA-256 are pinned in `Packs.kt`. They are not committed.
+- Both bundled font files report Russian and Latvian coverage through fontconfig. Actual Android rendering is a separate CI check.
+- First CI run `44061080421` stopped in the redundant `android-actions/setup-android` step before compilation. The workflow now uses the SDK already present on the pinned Ubuntu runner and installs only explicit package versions. Android verification was not passed by that failed run.
