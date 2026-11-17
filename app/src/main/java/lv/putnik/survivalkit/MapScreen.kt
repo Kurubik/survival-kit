@@ -50,7 +50,7 @@ import org.mapsforge.map.rendertheme.internal.MapsforgeThemes
                 AndroidGraphicFactory.createInstance(context.applicationContext as android.app.Application)
                 MapView(ctx).apply {
                     isClickable=true;setBuiltInZoomControls(true);mapScaleBar.isVisible=true
-                    model.displayModel.fixedTileSize=256
+                    model.displayModel.setFixedTileSize(256)
                     val cache=AndroidUtil.createTileCache(ctx,"latvia-cache",model.displayModel.tileSize,1f,model.frameBufferModel.overdrawFactor.toDouble())
                     val data=MapFile(Packs.file(ctx,Packs.map))
                     val renderer=TileRendererLayer(cache,data,model.mapViewPosition,AndroidGraphicFactory.INSTANCE)
@@ -62,7 +62,7 @@ import org.mapsforge.map.rendertheme.internal.MapsforgeThemes
             },modifier=Modifier.weight(1f).fillMaxWidth(),update={ map->
                 overlays.forEach {map.layerManager.layers.remove(it);it.onDestroy()};overlays.clear()
                 if(vm.track.size>1) {
-                    val paint=AndroidGraphicFactory.INSTANCE.createPaint().apply { color=0xFF883D2C.toInt();strokeWidth=6f;style=org.mapsforge.core.graphics.Style.STROKE }
+                    val paint=AndroidGraphicFactory.INSTANCE.createPaint().apply { color=0xFF883D2C.toInt();strokeWidth=6f;setStyle(org.mapsforge.core.graphics.Style.STROKE) }
                     val line=Polyline(paint,AndroidGraphicFactory.INSTANCE)
                     line.latLongs.addAll(vm.track.map {LatLong(it.latitude,it.longitude)})
                     map.layerManager.layers.add(line);overlays.add(line)
