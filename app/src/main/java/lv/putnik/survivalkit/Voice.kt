@@ -29,9 +29,10 @@ class Voice(private val context: Context, private val scope: CoroutineScope, pri
     init {
         tts=TextToSpeech(context) { code -> main.post {
             val engine=tts
-            val voice=engine?.voices?.filter { it.locale.language=="ru" && !it.isNetworkConnectionRequired }?.maxByOrNull { it.quality }
-            canSpeak=code==TextToSpeech.SUCCESS && voice!=null
-            if(canSpeak)engine?.voice=voice
+            val voice=if(code==TextToSpeech.SUCCESS)runCatching { engine?.voices?.filter {
+                it.locale.language=="ru" && !it.isNetworkConnectionRequired && !it.features.contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED)
+            }?.maxByOrNull { it.quality } }.getOrNull() else null
+            canSpeak=engine!=null && voice!=null && engine.setVoice(voice)==TextToSpeech.SUCCESS
             status(if(canSpeak) "Русский офлайн-голос готов" else "Установи русский офлайн-голос в настройках Android")
         } }
     }
