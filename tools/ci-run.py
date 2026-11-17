@@ -21,9 +21,9 @@ for line in process.stdout:
     lines.append(line)
 status = process.wait()
 if status:
-    primary = list(dict.fromkeys(line for line in lines if re.search(r"(^e: |error:|Could not resolve|Could not find|Unresolved reference|Cannot access|Type mismatch)", line, re.I)))
+    primary = list(dict.fromkeys(line for line in lines if re.search(r"(^e: |error:|ERROR\s*\||PANIC|FATAL|RuntimeError|TimeoutExpired|Permission denied|Could not resolve|Could not find|Unresolved reference|Cannot access|Type mismatch)", line, re.I)))
     secondary = [line for line in lines if re.search(r"(What went wrong|Execution failed|^FAILURE:|^Caused by:|not found)", line, re.I)]
-    message = "".join(primary[:50] + secondary[-8:] if primary else list(lines)[-40:])[:18000]
+    message = "".join(primary[:50] + secondary[-8:] + list(lines)[-20:] if primary else list(lines)[-50:])[:24000]
     message = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
     print(f"::error title=Verification command exited {status}::{message}")
     reports=pathlib.Path("app/build/outputs/androidTest-results")

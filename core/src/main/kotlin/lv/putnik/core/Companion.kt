@@ -23,7 +23,11 @@ class Companion {
         val emergencyWords = listOf("не дышит", "без сознания", "сильное кровотечение", "умирает", "потерял сознание")
         val match = if (emergencyWords.any(q::contains)) GuideLibrary.byId("first-aid") else GuideLibrary.search(q).firstOrNull()
         if (guide?.id == "fire" && q in listOf("зажигалка", "огниво", "спички", "ничего", "нет ничего")) {
-            if (q.contains("ничего")) return Reply("Не рассчитывай на трение как на быстрый способ. Сначала защита от ветра и влаги, сухая одежда и безопасное укрытие. Открыть памятку об укрытии?", GuideLibrary.byId("shelter"), listOf("Укрытие", "Промок и замёрз"))
+            if (q.contains("ничего")) {
+                val shelter=GuideLibrary.byId("shelter")!!
+                activeGuide=shelter;stepIndex=0
+                return Reply("Не рассчитывай на трение как на быстрый способ. Переключаемся на безопасное укрытие. " + step(shelter).text, shelter, listOf("Дальше", "Повтори", "Промок и замёрз"))
+            }
             stepIndex = 0
             return Reply("С собой: $input. " + step(guide).text, guide, listOf("Дальше", "Повтори"))
         }

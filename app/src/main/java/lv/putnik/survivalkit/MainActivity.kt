@@ -33,6 +33,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.Font
@@ -163,6 +165,8 @@ private fun guideIcon(id: String): ImageVector = when(id) { "fire"->Icons.Outlin
 
 @Composable private fun ChatScreen(vm: PutnikModel) {
     val context=LocalContext.current
+    val focus=LocalFocusManager.current
+    val keyboard=LocalSoftwareKeyboardController.current
     var question by rememberSaveableText()
     LaunchedEffect(vm.recognizedDraft) { if(vm.recognizedDraft.isNotBlank()){question=vm.recognizedDraft;vm.recognizedDraft=""} }
     val list=rememberLazyListState()
@@ -189,8 +193,8 @@ private fun guideIcon(id: String): ImageVector = when(id) { "fire"->Icons.Outlin
             vm.choices.forEach { text -> AssistChip(onClick={vm.ask(text)},label={Text(text,fontSize=12.sp)},modifier=Modifier.heightIn(min=40.dp)) }
         }
         Row(Modifier.imePadding().padding(top=6.dp,bottom=6.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(value=question,onValueChange={question=it.take(1500)},modifier=Modifier.weight(1f).testTag("question"),placeholder={Text("Напиши вопрос…",fontSize=14.sp)},maxLines=3,shape=RoundedCornerShape(12.dp),keyboardOptions=KeyboardOptions(imeAction=ImeAction.Send),keyboardActions=KeyboardActions(onSend={vm.ask(question);question=""}))
-            FilledIconButton(onClick={if(question.isNotBlank()){vm.ask(question);question=""}else if(vm.listening){vm.voice.stopListening();vm.listening=false;vm.voiceStatus="Запись остановлена"}else if(ContextCompat.checkSelfPermission(context,Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED)vm.voice.listen() else permission.launch(Manifest.permission.RECORD_AUDIO)},modifier=Modifier.size(56.dp).testTag("send"),colors=IconButtonDefaults.filledIconButtonColors(containerColor=if(vm.listening)Rust else Brass,contentColor=Ink)) { Icon(if(question.isNotBlank())Icons.Outlined.Send else if(vm.listening)Icons.Outlined.Stop else Icons.Outlined.Mic,if(question.isNotBlank())"Отправить" else if(vm.listening)"Остановить запись" else "Говорить") }
+            OutlinedTextField(value=question,onValueChange={question=it.take(1500)},modifier=Modifier.weight(1f).testTag("question"),placeholder={Text("Напиши вопрос…",fontSize=14.sp)},maxLines=3,shape=RoundedCornerShape(12.dp),keyboardOptions=KeyboardOptions(imeAction=ImeAction.Send),keyboardActions=KeyboardActions(onSend={vm.ask(question);question="";focus.clearFocus();keyboard?.hide()}))
+            FilledIconButton(onClick={focus.clearFocus();keyboard?.hide();if(question.isNotBlank()){vm.ask(question);question=""}else if(vm.listening){vm.voice.stopListening();vm.listening=false;vm.voiceStatus="Запись остановлена"}else if(ContextCompat.checkSelfPermission(context,Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED)vm.voice.listen() else permission.launch(Manifest.permission.RECORD_AUDIO)},modifier=Modifier.size(56.dp).testTag("send"),colors=IconButtonDefaults.filledIconButtonColors(containerColor=if(vm.listening)Rust else Brass,contentColor=Ink)) { Icon(if(question.isNotBlank())Icons.Outlined.Send else if(vm.listening)Icons.Outlined.Stop else Icons.Outlined.Mic,if(question.isNotBlank())"Отправить" else if(vm.listening)"Остановить запись" else "Говорить") }
         }
         Text(vm.voiceStatus,Modifier.padding(bottom=6.dp),fontSize=10.sp,lineHeight=14.sp)
     }

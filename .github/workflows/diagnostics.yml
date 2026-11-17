@@ -1,0 +1,35 @@
+name: Previous emulator diagnostics
+on:
+  push:
+    paths: [.github/workflows/diagnostics.yml]
+  workflow_dispatch:
+permissions:
+  actions: read
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Report previous emulator failure without credential disclosure
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import subprocess,re
+          result=subprocess.run(['gh','run','view','44064946995','--log-failed'],capture_output=True,text=True)
+          if result.returncode:
+              print(result.stderr)
+              raise SystemExit(result.returncode)
+          lines=result.stdout.splitlines()
+          indices=set()
+          for i,line in enumerate(lines):
+              if re.search(r'PANIC|ERROR\s*\||fatal|RuntimeError|TimeoutExpired|cannot|not found|KVM|Could not|Disk free',line,re.I):
+                  indices.update(range(max(0,i-3),min(len(lines),i+4)))
+          selected=[lines[i] for i in sorted(indices)]
+          for index in range(0,len(selected),30):
+              message='\n'.join(selected[index:index+30])[:12000]
+              message=message.replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+              print('::notice title=Previous emulator log::'+message)
+          PY

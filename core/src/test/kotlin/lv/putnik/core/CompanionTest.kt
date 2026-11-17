@@ -15,6 +15,8 @@ class CompanionTest {
         assertTrue(first.choices.contains("Ничего"))
         assertFalse(first.text.contains("используй зажигалку"))
         assertTrue(c.ask("Ничего").text.contains("Не рассчитывай на трение"))
+        assertEquals("shelter",c.activeGuide?.id)
+        assertEquals("shelter",c.ask("Дальше").guide?.id)
     }
     @Test fun stepsRepeatAndStopHaveRealState() {
         val c = Companion(); val first = c.ask("Как найти воду?")
