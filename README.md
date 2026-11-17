@@ -4,9 +4,13 @@
 
 **Первая alpha, не завершённый полевой продукт.** Состояние Android-сборки и UI-проверок видно в [Actions](https://github.com/Kurubik/survival-kit/actions/workflows/android.yml). APK публикуется в [pre-releases](https://github.com/Kurubik/survival-kit/releases) только после успешной сборки, unit-тестов, lint и Android emulator UI-тестов. Эмулятор не заменяет проверку на реальном телефоне.
 
+**Android 0.2 / alpha-19:** [скачать APK · 96.1 МБ](https://github.com/Kurubik/survival-kit/releases/download/alpha-19/putnik-alpha.apk) · [релиз и контрольные суммы](https://github.com/Kurubik/survival-kit/releases/tag/alpha-19) · [фактические проверки, ответы и замеры](docs/verification/alpha-19.md).
+
 ## Скриншоты
 
-Реальные экраны [alpha-12](https://github.com/Kurubik/survival-kit/releases/tag/alpha-12): Android 35, эмулятор Pixel 6, 1080 × 2400. Это снимки приложения, не AI-макеты. На экране спутника показан сценарный режим без загруженной AI-модели; карта Латвии открыта из локального пакета с отключёнными Wi-Fi и мобильными данными.
+Реальные экраны [alpha-19](https://github.com/Kurubik/survival-kit/releases/tag/alpha-19): Android 35, эмулятор Pixel 6, 1080 × 2400. Это снимки приложения, не AI-макеты. Свободная беседа использует настоящую локальную Qwen3 4B; на снимке выбран профиль «Душевно». Режим «По шагам» отделён от AI. Карта и разговор проверялись с отключёнными Wi-Fi и мобильными данными.
+
+<p align="center"><img src="docs/screenshots/07-free-conversation.png" alt="Свободный AI-диалог: недавний контекст и творческий запрос вне походных карточек" width="280"></p>
 
 | Лагерь | Спутник | Памятка |
 | :---: | :---: | :---: |
@@ -16,7 +20,7 @@
 | :---: | :---: | :---: |
 | <img src="docs/screenshots/04-backpack.png" alt="Рюкзак: сохраняемый чек-лист снаряжения" width="240"> | <img src="docs/screenshots/05-map.png" alt="Карта Риги и окрестностей без сети" width="240"> | <img src="docs/screenshots/06-help.png" alt="Экран помощи: вызов 112 и получение координат" width="240"> |
 
-[Оригинальные PNG](docs/screenshots/) · [Прогон сборки и Android-проверок](https://github.com/Kurubik/survival-kit/actions/runs/44071562775). Исходный код этих экранов: [`1581149`](https://github.com/Kurubik/survival-kit/commit/1581149178088301e929615ff4dc0dcf697e726f).
+[Все восемь оригинальных PNG](docs/screenshots/) · [Экран подготовки AI без модели, с открытой клавиатурой](docs/screenshots/08-chat-setup.png) · [Прогон сборки и Android-проверок](https://github.com/Kurubik/survival-kit/actions/runs/44097023434). Исходный код этих экранов: [`53fd9ed`](https://github.com/Kurubik/survival-kit/commit/53fd9ed76a6716e6f1d800bbb4d77524105821df).
 
 ## Реализовано в исходниках
 
@@ -35,7 +39,7 @@
 
 ## Первый запуск
 
-1. Установить APK из завершённого prerelease. Это debug-signed alpha для испытаний, не production-подпись; бесшовные обновления между CI-сборками пока не гарантируются.
+1. Установить APK из завершённого prerelease. Это debug-signed alpha для испытаний, не production-подпись. У alpha-19 сертификат отличается от alpha-12, поэтому обычное обновление поверх неё несовместимо. Перед возможной переустановкой сохраните нужные заметки и GPX: удаление приложения удаляет также его историю и скачанные пакеты. Стабильная подпись обновлений пока не настроена.
 2. Уже без интернета и AI доступны карточки, режим «По шагам» и чек-лист.
 3. В «Рюкзаке» по желанию скачать русское распознавание (46.2 МБ) и карту Латвии (110.2 МБ). Требуется дополнительное место для распаковки.
 4. В настройках Android установить русский офлайн TTS-голос, если его нет; затем проверить чтение вслух в приложении.

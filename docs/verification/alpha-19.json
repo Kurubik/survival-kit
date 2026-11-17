@@ -1,0 +1,83 @@
+{
+  "commit": "53fd9ed76a6716e6f1d800bbb4d77524105821df",
+  "unit": [
+    {
+      "name": "lv.putnik.core.CompanionTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "fireRequiresEquipmentAndDoesNotAssumeNegatedLighterExists",
+        "emergencyOverridesFireOrPersonality",
+        "unavailableKnowledgeDoesNotInventAnswer",
+        "quantitativeHallucinationsAndUnknownCitationsAreRejected",
+        "sourceKeysAreUniqueAndHttps",
+        "stepsRepeatAndStopHaveRealState",
+        "russianInflectionsFindRelevantGuide"
+      ]
+    },
+    {
+      "name": "lv.putnik.core.ConversationTest",
+      "tests": 9,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "emergencyStaysNeutralAndDoesNotDependOnALoadedModel",
+        "contextBudgetDropsOldTurnsNotTheLatestQuestion",
+        "recentDialogueKeepsRolesAndPersonalDetails",
+        "personalityProfilesRemainDistinct",
+        "userTextCannotInsertChatTemplateRoles",
+        "ordinarySmallTalkDoesNotOpenAnEmergencyCard",
+        "retrievedKnowledgeIsOptionalContextNotAnAnswerWhitelist",
+        "generalTopicsDoNotRequireAGuideOrCitation",
+        "thinkingBlocksNeverAppearInCompleteOrPartialOutput"
+      ]
+    }
+  ],
+  "android_emulator": [
+    {
+      "name": "lv.putnik.survivalkit.PutnikUiTest",
+      "tests": 7,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "cases": [
+        "guidesAreReadableWithoutAModel",
+        "backpackStatesAreHonestAndGearPersists",
+        "missingModelIsExplicitAndDoesNotPretendToBeAConversation",
+        "campDisplaysSelectedDirection",
+        "freeConversationUsesRealNativeModelAndKeepsRecentDetails",
+        "mapAndEmergencyDoNotInventPosition",
+        "russianQuestionAsksForEquipmentThenProgresses"
+      ]
+    }
+  ],
+  "screenshots": [
+    "04-backpack.png",
+    "05-map.png",
+    "02-companion.png",
+    "01-camp.png",
+    "08-chat-setup.png",
+    "06-help.png",
+    "07-free-conversation.png",
+    "03-guide.png"
+  ],
+  "native_inference": {
+    "model_sha256": "7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5",
+    "runtime": "actual Android emulator JNI, no cloud API",
+    "recent_detail_recalled": true,
+    "prefix_cache_reused": true,
+    "general_topic_answer_observed": true,
+    "response_milliseconds": [
+      87809,
+      15396,
+      32499
+    ],
+    "streamed_text_observed": true,
+    "cancellation_verified": true
+  },
+  "network": "emulator Wi-Fi and mobile data disabled",
+  "device_quality_verified": false
+}
