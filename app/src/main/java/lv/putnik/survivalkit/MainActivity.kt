@@ -272,7 +272,7 @@ private fun guideIcon(id: String): ImageVector = when(id) { "fire"->Icons.Outlin
         item { PaperPanel(Modifier.fillMaxWidth()) { Row(verticalAlignment=Alignment.CenterVertically) { Icon(Icons.Outlined.WarningAmber,null,tint=Rust);Spacer(Modifier.width(8.dp));Text("Важно",fontFamily=Heading,fontSize=27.sp,color=Rust) };guide.warnings.forEach { Text("• $it",fontSize=14.sp,lineHeight=21.sp) } } }
         item { Action("Слушать памятку",Icons.Outlined.VolumeUp,Modifier.fillMaxWidth()) {vm.voice.speak((guide.steps+guide.warnings).joinToString(" "))} }
         item { Action("Разобрать по шагам",Icons.Outlined.ChatBubbleOutline,Modifier.fillMaxWidth()) {vm.discussGuide(guide)} }
-        if(vm.installed(Packs.model)&&!guide.critical)item { OutlinedButton(onClick={vm.selectChatMode(ChatMode.FREE);vm.ask("Давай обсудим: ${guide.title}")},modifier=Modifier.fillMaxWidth()) {Text("Обсудить с AI")} }
+        if(vm.installed(Packs.model)&&!guide.critical)item { OutlinedButton(onClick={vm.discussGuideWithAI(guide)},modifier=Modifier.fillMaxWidth()) {Text("Обсудить с AI")} }
         item { PaperPanel(Modifier.fillMaxWidth()) {
             Text("Источники",fontFamily=Heading,fontSize=27.sp)
             Text("Краткое изложение хранится в приложении. Оригиналы открываются в браузере и могут требовать сеть. Отдельная профессиональная проверка карточек ещё не проведена.",fontSize=11.sp,lineHeight=16.sp)

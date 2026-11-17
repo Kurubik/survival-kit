@@ -84,6 +84,7 @@ class PutnikUiTest {
         val questions=listOf(
             "Привет! Меня зовут Саша, а моего пса — Рыжик. Давай просто поболтаем, не про выживание. Поздоровайся с нами коротко.",
             "Как зовут моего пса? Ответь одной короткой фразой.",
+            "Придумай два смешных названия музыкальной группы, где играем я и Рыжик. Только названия, без объяснений.",
             "Придумай очень длинную сказку про путешествие говорящего рюкзака, не меньше двадцати абзацев."
         )
         val answers=mutableListOf<String>()
@@ -104,7 +105,7 @@ class PutnikUiTest {
             values.clear();values.put(MediaStore.Downloads.IS_PENDING,0);resolver.update(uri,values,null,null)
         }
         saveProof("starting")
-        for(question in questions.take(2)) {
+        for(question in questions.take(3)) {
             val before=System.currentTimeMillis()
             compose.onNodeWithTag("question").performTextInput(question)
             compose.onNodeWithTag("send").performClick()
@@ -119,14 +120,15 @@ class PutnikUiTest {
             saveProof("generation-returned")
             check(vm.messages.count {it.ai}>answers.size) {"Native chat failed: ${vm.modelStatus}; ready=${vm.modelReady}"}
             val answer=vm.messages.last {it.ai}.text
+            check(vm.messages.last {it.ai}.guideId==null) {"Ordinary conversation acquired an unrelated guide"}
             answers.add(answer);timings.add(System.currentTimeMillis()-before);metrics.add(JSONObject(NativeLlama.stats()))
             saveProof("reply-${answers.size}")
             check(answer.isNotBlank()&&Regex("[А-Яа-яЁё]").containsMatchIn(answer))
             check(!answer.contains("<think>")&&!answer.contains("В загруженных памятках не нашлось"))
         }
-        check(answers.last().lowercase().contains("рыжик")) {"Actual model did not recall the earlier personal detail"}
-        check(metrics.last().getInt("reusedTokens")>0) {"The follow-up did not reuse the native prefix cache"}
-        proof.put("recentDetailRecalled",true).put("prefixCacheReused",true)
+        check(answers[1].lowercase().contains("рыжик")) {"Actual model did not recall the earlier personal detail"}
+        check(metrics[1].getInt("reusedTokens")>=metrics[0].getInt("promptTokens")-2) {"The follow-up did not reuse the preceding question's native prefix"}
+        proof.put("recentDetailRecalled",true).put("prefixCacheReused",true).put("generalTopicAnswerObserved",true)
         saveProof("testing-stream")
         capture("07-free-conversation")
         compose.onNodeWithTag("question").performTextInput(questions.last())
@@ -135,7 +137,7 @@ class PutnikUiTest {
         compose.onNodeWithContentDescription("Остановить AI").performClick()
         compose.waitUntil(timeoutMillis=10_000) {!vm.thinking}
         Thread.sleep(1200)
-        check(vm.messages.count {it.ai}==2) {"A late response was committed after cancellation"}
+        check(vm.messages.count {it.ai}==3) {"A late response was committed after cancellation"}
         // Stale lifecycle work must not unload a more recent request's model.
         val stale=NativeLlama.startRequest();NativeLlama.startRequest()
         NativeLlama.unload(stale);check(NativeLlama.isLoaded())
@@ -145,7 +147,7 @@ class PutnikUiTest {
         compose.runOnIdle {
             val restored=ViewModelProvider(compose.activity)[PutnikModel::class.java]
             check(restored.chatMode==ChatMode.FREE)
-            check(restored.messages.count {it.ai}==2)
+            check(restored.messages.count {it.ai}==3)
             check(restored.messages.last {it.ai}.text==answers.last())
         }
         saveProof("complete")

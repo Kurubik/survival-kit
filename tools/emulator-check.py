@@ -91,8 +91,8 @@ try:
     run(adb,"pull","/sdcard/Download/PutnikCI",evidence/"native",timeout=30)
     native_collected=True
     proof=json.loads((evidence/"native/llm-smoke.json").read_text())
-    if proof.get("phase")!="complete" or not proof["recentDetailRecalled"] or not proof["prefixCacheReused"] or not proof["streamedTextObserved"] or proof["lateResponseAfterCancel"] or not proof["staleRequestRejected"]:raise RuntimeError("Actual native conversation proof is incomplete")
-    (evidence/"verification.json").write_text(json.dumps({"commit":os.environ.get("GITHUB_SHA"),"unit":unit,"android_emulator":android,"screenshots":[p.name for p in pictures],"native_inference":{"model_sha256":proof["sha256"],"runtime":proof["runtime"],"recent_detail_recalled":True,"prefix_cache_reused":True,"response_milliseconds":proof["responseMilliseconds"],"streamed_text_observed":True,"cancellation_verified":True},"network":"emulator Wi-Fi and mobile data disabled","device_quality_verified":False},ensure_ascii=False,indent=2))
+    if proof.get("phase")!="complete" or len(proof.get("answers",[]))!=3 or not proof.get("generalTopicAnswerObserved") or not proof["recentDetailRecalled"] or not proof["prefixCacheReused"] or not proof["streamedTextObserved"] or proof["lateResponseAfterCancel"] or not proof["staleRequestRejected"]:raise RuntimeError("Actual native conversation proof is incomplete")
+    (evidence/"verification.json").write_text(json.dumps({"commit":os.environ.get("GITHUB_SHA"),"unit":unit,"android_emulator":android,"screenshots":[p.name for p in pictures],"native_inference":{"model_sha256":proof["sha256"],"runtime":proof["runtime"],"recent_detail_recalled":True,"prefix_cache_reused":True,"general_topic_answer_observed":True,"response_milliseconds":proof["responseMilliseconds"],"streamed_text_observed":True,"cancellation_verified":True},"network":"emulator Wi-Fi and mobile data disabled","device_quality_verified":False},ensure_ascii=False,indent=2))
 except Exception:
     if log:log.flush()
     if (evidence/"emulator.log").exists():print((evidence/"emulator.log").read_text(errors="replace")[-7000:],flush=True)

@@ -69,10 +69,10 @@ class PutnikModel(app: Application): AndroidViewModel(app), LocationListener {
         if(messages.isEmpty())messages.add(ChatMessage("Я Путник. Можно просто поболтать, обсудить идеи или собраться в поход. Для живого разговора нужна локальная AI-модель; памятки по шагам работают и без неё.",false))
     }
     fun openGuide(guide: Guide) { selectedGuide=guide;page=Page.GUIDE }
-    fun ask(text: String, fromVoice: Boolean=false) {
+    fun ask(text: String, fromVoice: Boolean=false, guide: Guide?=null) {
         val input=text.trim().take(1500);if(input.isEmpty())return
         cancelGeneration();page=Page.CHAT
-        messages.add(ChatMessage(input,true,mode=chatMode));persistHistory()
+        messages.add(ChatMessage(input,true,guideId=guide?.takeUnless {it.critical}?.id,mode=chatMode));persistHistory()
         val reply=Conversation.emergency(input) ?: if(chatMode==ChatMode.GUIDED)engine.ask(input,personality)else null
         if(reply!=null) {
             choices=reply.choices
@@ -98,7 +98,9 @@ class PutnikModel(app: Application): AndroidViewModel(app), LocationListener {
         idleJob?.cancel();thinking=true;streaming="";modelStatus="Открываю спутника на устройстве…"
         val token=++requestId
         val request=if(NativeLlama.available)NativeLlama.startRequest()else 0L
-        val guide=GuideLibrary.search(input).firstOrNull { !it.critical }
+        // A casual message must not acquire unrelated cards through fuzzy search.
+        // Only the explicit "Discuss with AI" action supplies local source context.
+        val guide=messages.lastOrNull()?.guideId?.let(GuideLibrary::byId)?.takeUnless {it.critical}
         val history=messages.filter {it.mode==ChatMode.FREE}.map {DialogueTurn(it.text,it.user)}
         val prompt=Conversation.prompt(history,personality,guide)
         generationJob=viewModelScope.launch {
@@ -136,12 +138,13 @@ class PutnikModel(app: Application): AndroidViewModel(app), LocationListener {
         choices=if(value==ChatMode.GUIDED)listOf("Огонь", "Вода", "Укрытие", "Я потерялся")else emptyList()
     }
     fun discussGuide(guide: Guide) {selectChatMode(ChatMode.GUIDED);ask(guide.title)}
+    fun discussGuideWithAI(guide: Guide) {selectChatMode(ChatMode.FREE);ask("Давай обсудим: ${guide.title}",guide=guide)}
     fun retryConversation() {
         if(thinking)return
         val last=messages.lastOrNull()?:return
         if(last.user&&last.mode==ChatMode.FREE&&installed(Packs.model))generateConversation(last.text)
     }
-    fun cancelGeneration() { requestId++;generationJob?.cancel();if(NativeLlama.available)NativeLlama.cancel();if(thinking)modelStatus="Ответ остановлен";thinking=false;streaming="";voice.stopSpeaking() }
+    fun cancelGeneration() { requestId++;generationJob?.cancel();if(NativeLlama.available)NativeLlama.cancel();if(thinking)modelStatus="Ответ остановлен";thinking=false;streaming="";voice.stopSpeaking();if(modelReady)scheduleIdleUnload() }
     fun clearChat() { cancelGeneration();engine.reset();messages.clear();messages.add(ChatMessage("Начнём новую беседу. О чём поговорим?",false));persistHistory() }
     private fun persistHistory() {
         val array=JSONArray();messages.takeLast(40).forEach { m -> array.put(JSONObject().put("text",m.text).put("user",m.user).put("guide",m.guideId.orEmpty()).put("ai",m.ai).put("mode",m.mode?.name.orEmpty())) }

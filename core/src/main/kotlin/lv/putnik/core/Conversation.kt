@@ -12,8 +12,8 @@ object Conversation {
 
     fun prompt(history: List<DialogueTurn>, personality: Personality, guide: Guide? = null): String {
         val tone = when(personality) {
-            Personality.ULTRA -> "Pohuy Ultra: душевный русский, уместный разговорный мат и подколы про ситуацию. Не оскорбляй собеседника, не ругайся механически в каждой фразе."
-            Personality.WARM -> "Тёплый неформальный русский без грубой лексики."
+            Personality.ULTRA -> "Pohuy Ultra: на ты, душевный русский, уместный разговорный мат и подколы про ситуацию. Не оскорбляй собеседника, не ругайся механически в каждой фразе."
+            Personality.WARM -> "На ты, тёплый неформальный русский без грубой лексики."
             Personality.NEUTRAL -> "Спокойный точный русский без грубой лексики и подколов."
         }
         val system = """
