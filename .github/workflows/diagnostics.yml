@@ -17,15 +17,27 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           python3 - <<'PY'
-          import subprocess,re
-          result=subprocess.run(['gh','run','view','44086740552','--log-failed'],capture_output=True,text=True)
+          import subprocess,re,pathlib,xml.etree.ElementTree as ET
+          result=subprocess.run(['gh','run','view','44088784154','--log-failed'],capture_output=True,text=True)
           if result.returncode:
               print(result.stderr)
               raise SystemExit(result.returncode)
-          lines=result.stdout.splitlines()
+          downloaded=subprocess.run(['gh','run','download','44088784154','--name','putnik-android-alpha','--dir','prior-evidence'],capture_output=True,text=True)
+          extra=[]
+          if downloaded.returncode==0:
+              native=pathlib.Path('prior-evidence/evidence/native-logcat.txt')
+              if native.exists():
+                  extra.extend(native.read_text().splitlines()[-120:])
+              for report in pathlib.Path('prior-evidence').rglob('TEST-*.xml'):
+                  try:
+                      for failure in ET.parse(report).getroot().iter('failure'):
+                          extra.append('Native test XML '+failure.get('message','')+' '+(failure.text or '')[:2500])
+                  except ET.ParseError:pass
+          else:extra.append('Native artifact download not available')
+          lines=result.stdout.splitlines()+extra
           indices=set()
           for i,line in enumerate(lines):
-              if re.search(r'PutnikAI|llama_|ggml_|Native chat|freeConversationUses|Builder RAM|Disk free|Memory|Unable to load|model could not',line,re.I):
+              if re.search(r'PutnikAI|llama_context|llama_init|llama_model_load|Native chat|Native test XML|freeConversationUses|Builder RAM|Disk free|failed|error loading',line,re.I):
                   indices.update(range(max(0,i-3),min(len(lines),i+4)))
           selected=[lines[i] for i in sorted(indices)]
           for index in range(0,len(selected),30):
