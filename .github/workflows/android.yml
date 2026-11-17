@@ -21,9 +21,9 @@ jobs:
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
       - name: Install pinned toolchain
-        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"'
+        run: 'python3 tools/ci-run.py "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"'
       - name: Compile and verify
-        run: ./gradlew :core:test :app:lintDebug :app:assembleDebug :app:assembleAndroidTest --stacktrace
+        run: python3 tools/ci-run.py ./gradlew :core:test :app:lintDebug :app:assembleDebug :app:assembleAndroidTest --stacktrace
       - name: Download verified offline Latvia fixture
         run: |
           curl -fL --retry 2 https://download.mapsforge.org/maps/v5/europe/latvia.map -o /tmp/latvia.map
@@ -48,7 +48,7 @@ jobs:
             adb shell 'cat /data/local/tmp/latvia.map | run-as lv.putnik.survivalkit sh -c "cat > files/packs/latvia.map"'
             adb shell svc wifi disable
             adb shell svc data disable
-            ./gradlew :app:connectedDebugAndroidTest --stacktrace
+            python3 tools/ci-run.py ./gradlew :app:connectedDebugAndroidTest --stacktrace
             adb pull /sdcard/Android/data/lv.putnik.survivalkit/files/screenshots evidence
       - name: Save alpha and verification evidence
         if: always()

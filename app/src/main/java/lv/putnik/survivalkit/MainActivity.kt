@@ -73,7 +73,7 @@ class MainActivity: ComponentActivity() {
         val tabs=listOf(Page.CAMP to "Лагерь",Page.CHAT to "Спутник",Page.MAP to "Карта",Page.PACK to "Рюкзак")
         BackHandlerIfNeeded(vm)
         Scaffold(containerColor=scheme.background,topBar={
-            TopAppBar(title={ Text(when(vm.page){Page.CAMP->"ПУТНИК";Page.CHAT->"Спутник";Page.MAP->"Карта";Page.PACK->"Рюкзак";Page.LIBRARY->"Памятки";Page.GUIDE->"Полевой справочник";Page.HELP->"Нужна помощь";Page.SETTINGS->"Настройки"},fontFamily=Heading,fontSize=30.sp,fontWeight=FontWeight.SemiBold) },
+            TopAppBar(title={ Text(when(vm.page){Page.CAMP->"ПУТНИК";Page.CHAT->"Спутник";Page.MAP->"Карта";Page.PACK->"Рюкзак";Page.LIBRARY->"Памятки";Page.GUIDE->"Памятка";Page.HELP->"Нужна помощь";Page.SETTINGS->"Настройки"},fontFamily=Heading,fontSize=30.sp,fontWeight=FontWeight.SemiBold) },
                 navigationIcon={if(vm.page !in tabs.map {it.first})IconButton(onClick={vm.page=Page.CAMP}) { Icon(Icons.Outlined.ArrowBack,"Назад") }},
                 actions={ if(vm.page!=Page.HELP)TextButton(onClick={vm.page=Page.HELP},modifier=Modifier.testTag("help")) { Icon(Icons.Outlined.HelpOutline,null,Modifier.size(18.dp));Spacer(Modifier.width(5.dp));Text("Помощь") };IconButton(onClick={vm.page=Page.SETTINGS}) { Icon(Icons.Outlined.Settings,"Настройки") } },
                 colors=TopAppBarDefaults.topAppBarColors(containerColor=scheme.background,titleContentColor=scheme.onBackground,actionIconContentColor=Brass))
@@ -300,6 +300,8 @@ private fun guideIcon(id: String): ImageVector = when(id) { "fire"->Icons.Outlin
 
 @Composable private fun SettingsScreen(vm: PutnikModel) {
     val context=LocalContext.current
+    var confirmClear by remember {mutableStateOf(false)}
+    if(confirmClear)AlertDialog(onDismissRequest={confirmClear=false},title={Text("Очистить диалог?")},text={Text("Сообщения будут удалены с этого устройства. Заметки, рюкзак и трек сохранятся.")},confirmButton={TextButton(onClick={vm.clearChat();confirmClear=false}){Text("Очистить")}},dismissButton={TextButton(onClick={confirmClear=false}){Text("Отмена")}})
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         item { PaperPanel(Modifier.fillMaxWidth()) {
             SectionTitle("Характер спутника")
@@ -318,7 +320,7 @@ private fun guideIcon(id: String): ImageVector = when(id) { "fire"->Icons.Outlin
         item { PaperPanel(Modifier.fillMaxWidth()) {
             SectionTitle("Приватность")
             Text("Без аккаунта и аналитики. История, заметки, снаряжение и трек хранятся на устройстве. Сеть используется при нажатии на загрузку или внешний источник.",fontSize=14.sp,lineHeight=21.sp)
-            TextButton(onClick=vm::clearChat) {Text("Очистить историю диалога")}
+            TextButton(onClick={confirmClear=true}) {Text("Очистить историю диалога")}
         } }
         item { PaperPanel(Modifier.fillMaxWidth()) {
             SectionTitle("Путник · 0.1 alpha")

@@ -1,6 +1,7 @@
 package lv.putnik.survivalkit
 
 import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -15,6 +16,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import org.mapsforge.core.model.LatLong
 import org.mapsforge.map.android.graphics.AndroidGraphicFactory
 import org.mapsforge.map.android.util.AndroidUtil
@@ -31,8 +33,9 @@ import org.mapsforge.map.rendertheme.internal.MapsforgeThemes
     var centerRequest by remember { mutableIntStateOf(0) }
     var lastCenter by remember { mutableIntStateOf(-1) }
     var mapView by remember { mutableStateOf<MapView?>(null) }
+    var recordingRequest by remember { mutableStateOf(false) }
     val overlays=remember { mutableListOf<Layer>() }
-    val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { p->if(p.values.any {it})vm.startPosition() }
+    val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { p->if(p.values.any {it})vm.startPosition(recordingRequest);recordingRequest=false }
     val export=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/gpx+xml")) { uri->
         if(uri!=null)context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { out ->
             out.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?><gpx version=\"1.1\" creator=\"Putnik\" xmlns=\"http://www.topografix.com/GPX/1/1\"><trk><name>Путник</name><trkseg>")
@@ -93,11 +96,11 @@ import org.mapsforge.map.rendertheme.internal.MapsforgeThemes
         Text(vm.locationStatus,fontSize=12.sp)
         vm.location?.let {p->Text(String.format(java.util.Locale.ROOT,"%.6f, %.6f",p.latitude,p.longitude),fontSize=13.sp)}
         Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick={centerRequest++;permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION))},modifier=Modifier.weight(1f).heightIn(min=48.dp)) {Text("Моя точка")}
+            OutlinedButton(onClick={centerRequest++;recordingRequest=false;permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION))},modifier=Modifier.weight(1f).heightIn(min=48.dp)) {Text("Моя точка")}
             OutlinedButton(onClick=vm::saveCamp,enabled=vm.location!=null,modifier=Modifier.weight(1f).heightIn(min=48.dp)) {Text("Сохранить лагерь")}
         }
         Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            Button(onClick={if(vm.tracking)vm.stopPosition()else vm.startPosition(true)},modifier=Modifier.weight(1f).heightIn(min=48.dp)) {Text(if(vm.tracking)"Остановить трек"else"Записать трек")}
+            Button(onClick={if(vm.tracking)vm.stopPosition()else if(ContextCompat.checkSelfPermission(context,Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED)vm.startPosition(true)else {recordingRequest=true;permission.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION))}},modifier=Modifier.weight(1f).heightIn(min=48.dp)) {Text(if(vm.tracking)"Остановить трек"else"Записать трек")}
             OutlinedButton(onClick={export.launch("putnik-track.gpx")},enabled=vm.track.isNotEmpty(),modifier=Modifier.weight(1f).heightIn(min=48.dp)) {Text("Экспорт GPX")}
         }
         Text("Трек записывается только пока приложение открыто. Линия на карте не гарантирует безопасный путь.",fontSize=10.sp,lineHeight=14.sp)
